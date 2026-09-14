@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 100" width="420" height="100">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE68A" />
+      <stop offset="40%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#B45309" />
+    </linearGradient>
+    <linearGradient id="navyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F284E" />
+      <stop offset="100%" stop-color="#071324" />
+    </linearGradient>
+    <filter id="subtleShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Left Emblem Icon -->
+  <g transform="translate(10, 10)">
+    <!-- Outer Shield / Circle Base -->
+    <circle cx="40" cy="40" r="38" fill="url(#navyGrad)" stroke="url(#goldGrad)" stroke-width="2.5" filter="url(#subtleShadow)" />
+    <circle cx="40" cy="40" r="33" fill="none" stroke="#F59E0B" stroke-width="1" stroke-dasharray="3 2" opacity="0.6"/>
+
+    <!-- Artisan Dokra Motif / Sun Rays -->
+    <g transform="rotate(0 40 40)">
+      <path d="M40 9 L42 16 L38 16 Z" fill="url(#goldGrad)" />
+      <path d="M40 71 L42 64 L38 64 Z" fill="url(#goldGrad)" />
+      <path d="M9 40 L16 42 L16 38 Z" fill="url(#goldGrad)" />
+      <path d="M71 40 L64 42 L64 38 Z" fill="url(#goldGrad)" />
+      <path d="M18 18 L24 23 L21 26 Z" fill="url(#goldGrad)" />
+      <path d="M62 62 L56 57 L59 54 Z" fill="url(#goldGrad)" />
+      <path d="M18 62 L23 56 L26 59 Z" fill="url(#goldGrad)" />
+      <path d="M62 18 L57 24 L54 21 Z" fill="url(#goldGrad)" />
+    </g>
+
+    <!-- Clay Lamp (Pradip) & Artisan Heritage Flame -->
+    <path d="M26 46 Q40 56 54 46 Q50 54 40 56 Q30 54 26 46 Z" fill="url(#goldGrad)" />
+    <ellipse cx="40" cy="44" rx="14" ry="4" fill="#78350F" />
+    <ellipse cx="40" cy="43" rx="12" ry="2.5" fill="#F59E0B" opacity="0.8" />
+    <!-- Flame -->
+    <path d="M40 25 C45 32 46 38 40 43 C34 38 35 32 40 25 Z" fill="url(#goldGrad)" />
+    <circle cx="40" cy="38" r="2.5" fill="#FFFFFF" opacity="0.9" />
+
+    <!-- Initials JP in Gold -->
+    <text x="40" y="68" font-family="'Cinzel', 'Times New Roman', serif" font-weight="900" font-size="9" fill="url(#goldGrad)" text-anchor="middle" letter-spacing="2">MPC</text>
+  </g>
+
+  <!-- Right Typography / Company Name -->
+  <g transform="translate(102, 22)">
+    <!-- Main Company Name -->
+    <text x="0" y="26" font-family="'Cinzel', 'Georgia', 'Playfair Display', serif" font-weight="900" font-size="24" fill="#0F284E" letter-spacing="1.5">
+      JIT PRIME <tspan fill="#D97706">MPC</tspan>
+    </text>
+    
+    <!-- Subtitle: Company & Bengal Heritage -->
+    <text x="1" y="44" font-family="'Montserrat', 'Arial', sans-serif" font-weight="700" font-size="10.5" fill="#475569" letter-spacing="2.8">
+      COMPANY • HASTA SHILPA
+    </text>
+
+    <!-- Bengal Handcrafted Seal / Tagline -->
+    <text x="1" y="59" font-family="'Cinzel', 'Georgia', serif" font-style="italic" font-weight="600" font-size="9.5" fill="#B45309" letter-spacing="0.5">
+      Authentic Handicrafts of Bengal
+    </text>
+
+    <!-- Accent divider line -->
+    <line x1="1" y1="48" x2="280" y2="48" stroke="url(#goldGrad)" stroke-width="1.2" opacity="0.5" />
+  </g>
+</svg>
