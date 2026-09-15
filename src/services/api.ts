@@ -1557,11 +1557,49 @@ export const api = {
       isStorageUrl = true;
       console.log('Firebase Storage upload successful:', finalUrl);
     } catch (storageErr) {
-      console.warn('Firebase Storage upload warning, falling back to data URL:', storageErr);
-      finalUrl = compressedDataUrl || '';
+      console.warn('Firebase Storage upload warning, falling back to backend upload API:', storageErr);
     }
 
-    // Fallback if storage failed and no dataUrl
+    // 3. Fallback to Express backend `/api/upload` to prevent massive base64 strings in DB
+    if (!finalUrl) {
+      try {
+        const formData = new FormData();
+        // If we have compressed data, use it, otherwise use original file
+        if (compressedDataUrl && compressedDataUrl.startsWith('data:image/')) {
+          const blob = dataURLToBlob(compressedDataUrl);
+          formData.append('file', blob, file.name);
+        } else {
+          formData.append('file', file);
+        }
+
+        const token = localStorage.getItem('jit_admin_token') || 'jit_admin_token_default';
+        const formattedToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        const res = await fetch(`${API_BASE}/upload`, {
+          method: 'POST',
+          headers: {
+            'Authorization': formattedToken
+          },
+          body: formData,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.url) {
+            finalUrl = data.url;
+          }
+        }
+      } catch (uploadErr) {
+        console.error('Backend upload failed:', uploadErr);
+      }
+    }
+
+    // 4. Last resort fallback (only if both Firebase and Backend fail)
     if (!finalUrl && compressedDataUrl) {
       finalUrl = compressedDataUrl;
     }
@@ -1576,14 +1614,14 @@ export const api = {
       uploadedAt: new Date().toISOString()
     };
 
-    // 3. Save catalog record to Firestore for permanent media library
+    // Save catalog record to Firestore for permanent media library
     try {
       await fsSaveMediaFile(mediaEntry);
     } catch (fsErr) {
       console.warn('Firestore media catalog save warning:', fsErr);
     }
 
-    // 4. Save locally as fast offline cache
+    // Save locally as fast offline cache
     this.saveLocalMedia(mediaEntry);
 
     return {

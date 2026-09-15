@@ -449,7 +449,7 @@ export const AdminTeamTab: React.FC = () => {
                     <img
                       src={member.photo}
                       alt={member.name || member.caption || 'Team Member'}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      className="w-full h-full object-contain bg-white group-hover:scale-105 transition-transform duration-500"
                       onError={(e) => {
                         (e.target as HTMLElement).style.display = 'none';
                       }}
