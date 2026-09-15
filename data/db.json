@@ -381,9 +381,26 @@
   "faqs": [],
   "testimonials": [],
   "leads": [],
-  "media": [],
+  "media": [
+    {
+      "id": "media-1789487693234",
+      "filename": "test-1789487693229-2496882.jpg",
+      "originalName": "test.jpg",
+      "url": "/uploads/test-1789487693229-2496882.jpg",
+      "mimeType": "image/jpeg",
+      "size": 6,
+      "uploadedAt": "2026-09-15T15:54:53.234Z"
+    }
+  ],
   "gallery": [],
-  "teamMembers": [],
+  "teamMembers": [
+    {
+      "name": "Test",
+      "id": "team-1789487607589",
+      "orderIndex": 1,
+      "hidden": false
+    }
+  ],
   "adminUsers": [
     {
       "id": "admin-setup",

@@ -1557,51 +1557,21 @@ export const api = {
       isStorageUrl = true;
       console.log('Firebase Storage upload successful:', finalUrl);
     } catch (storageErr) {
-      console.warn('Firebase Storage upload warning, falling back to backend upload API:', storageErr);
+      console.warn('Firebase Storage upload warning, falling back to base64 data URL:', storageErr);
     }
 
-    // 3. Fallback to Express backend `/api/upload` to prevent massive base64 strings in DB
-    if (!finalUrl) {
-      try {
-        const formData = new FormData();
-        // If we have compressed data, use it, otherwise use original file
-        if (compressedDataUrl && compressedDataUrl.startsWith('data:image/')) {
-          const blob = dataURLToBlob(compressedDataUrl);
-          formData.append('file', blob, file.name);
-        } else {
-          formData.append('file', file);
-        }
-
-        const token = localStorage.getItem('jit_admin_token') || 'jit_admin_token_default';
-        const formattedToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-        
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-        
-        const res = await fetch(`${API_BASE}/upload`, {
-          method: 'POST',
-          headers: {
-            'Authorization': formattedToken
-          },
-          body: formData,
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.url) {
-            finalUrl = data.url;
-          }
-        }
-      } catch (uploadErr) {
-        console.error('Backend upload failed:', uploadErr);
-      }
-    }
-
-    // 4. Last resort fallback (only if both Firebase and Backend fail)
+    // 3. Fallback to Base64 (If Firebase Storage is not enabled or permission denied)
     if (!finalUrl && compressedDataUrl) {
+      // Protect against Firestore 1MB document limit and LocalStorage 5MB quota
+      if (compressedDataUrl.length > 900000) {
+        throw new Error('আপনার ফায়ারবেস স্টোরেজ (Firebase Storage) চালু নেই। তাই ডাটাবেসে সেভ করার জন্য ফাইলের সাইজ অবশ্যই ৭০০ KB এর নিচে হতে হবে। দয়া করে ফাইলের সাইজ ছোট করুন অথবা সরাসরি ছবির লিঙ্ক (URL) ব্যবহার করুন। (File is too large for database fallback, please compress under 700KB or use an image URL.)');
+      }
       finalUrl = compressedDataUrl;
+    }
+
+    // 4. Last resort fallback if no compressedDataUrl (e.g. huge PDF)
+    if (!finalUrl) {
+      throw new Error('ফাইল আপলোড ব্যর্থ হয়েছে। দয়া করে ফাইলের সাইজ ছোট করুন অথবা ফায়ারবেস স্টোরেজ (Firebase Storage) কনফিগার করুন। (Upload failed. File might be too large.)');
     }
 
     const mediaEntry: MediaFile = {
