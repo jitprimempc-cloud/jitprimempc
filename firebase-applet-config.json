@@ -1,12 +1,12 @@
 {
-  "projectId": "gen-lang-client-0266833148",
-  "appId": "1:170471256680:web:e90c179a741d1fc85ec1dd",
-  "apiKey": "AIzaSyB2f-RJHlsfthGBUBszODVASVptVy5jYpo",
-  "authDomain": "gen-lang-client-0266833148.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-jitprimempccompa-8ecfe685-6a97-4beb-aba2-561a0d9e5e2f",
-  "storageBucket": "gen-lang-client-0266833148.firebasestorage.app",
-  "messagingSenderId": "170471256680",
-  "measurementId": "",
-  "oAuthClientId": "170471256680-veifqc2ho345b001i0ok5gsrlk7p1v5m.apps.googleusercontent.com",
+  "projectId": "jit-prime-mpc",
+  "appId": "1:34714810950:web:776dcb6ee65827257c6847",
+  "apiKey": "AIzaSyDtoHcXBqazPshnRiKchiwSdI8DsywcBOg",
+  "authDomain": "jit-prime-mpc.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "jit-prime-mpc.firebasestorage.app",
+  "messagingSenderId": "34714810950",
+  "measurementId": "G-DCZCJWEYLS",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }

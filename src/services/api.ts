@@ -51,7 +51,19 @@ import {
   fsDeleteCoupon,
   fsGetCustomSections,
   fsSaveCustomSection,
-  fsDeleteCustomSection
+  fsDeleteCustomSection,
+  fsGetGallery,
+  fsSaveGalleryItem,
+  fsDeleteGalleryItem,
+  fsGetArtisans,
+  fsSaveArtisan,
+  fsDeleteArtisan,
+  fsGetTestimonials,
+  fsSaveTestimonial,
+  fsDeleteTestimonial,
+  fsGetTeam,
+  fsSaveTeam,
+  fsDeleteTeam
 } from './firestoreService';
 
 const API_BASE = '/api';
@@ -484,20 +496,37 @@ export const api = {
   // Women Artisans Network
   // ==========================================
   async getArtisans(includeHidden = false): Promise<Artisan[]> {
-    const local = getLocalItem<Artisan[]>('jit_custom_artisans', []);
-    let list = [...((staticDatabase.artisans || []) as Artisan[])];
+    let list: Artisan[] = [];
+    let fromCloud = false;
+    try {
+      const fsArtisans = await fsGetArtisans();
+      if (fsArtisans && fsArtisans.length > 0) {
+        list = fsArtisans;
+        fromCloud = true;
+        setLocalItem('jit_custom_artisans', fsArtisans);
+      }
+    } catch (e) {
+      console.warn('Firestore artisans fetch fallback:', e);
+    }
 
-    if (local.length > 0) {
-      const map = new Map<string, Artisan>();
-      list.forEach(a => map.set(a.id, a));
-      local.forEach(a => map.set(a.id, a));
-      list = Array.from(map.values());
+    if (!fromCloud) {
+      const local = getLocalItem<Artisan[]>('jit_custom_artisans', []);
+      list = [...((staticDatabase.artisans || []) as Artisan[])];
+      if (local.length > 0) {
+        const map = new Map<string, Artisan>();
+        list.forEach(a => map.set(a.id, a));
+        local.forEach(a => map.set(a.id, a));
+        list = Array.from(map.values());
+      }
     }
     list = filterDeleted('artisans', list);
 
     const remote = await safeFetchJson<Artisan[]>(`${API_BASE}/artisans?includeHidden=${includeHidden}`);
-    if (remote.ok && Array.isArray(remote.data)) {
-      return filterDeleted('artisans', remote.data);
+    if (remote.ok && Array.isArray(remote.data) && remote.data.length > 0) {
+      const map = new Map<string, Artisan>();
+      remote.data.forEach(a => map.set(a.id, a));
+      list.forEach(a => map.set(a.id, a));
+      list = filterDeleted('artisans', Array.from(map.values()));
     }
 
     if (!includeHidden) {
@@ -526,13 +555,19 @@ export const api = {
     const current = getLocalItem<Artisan[]>('jit_custom_artisans', []);
     setLocalItem('jit_custom_artisans', [newArtisan, ...current.filter(a => a.id !== newArtisan.id)]);
 
-    const remote = await safeFetchJson<Artisan>(`${API_BASE}/artisans`, {
+    try {
+      await fsSaveArtisan(newArtisan);
+    } catch (e) {
+      console.warn('Failed to save artisan to Firestore:', e);
+    }
+
+    safeFetchJson<Artisan>(`${API_BASE}/artisans`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(newArtisan)
-    });
+    }).catch(() => {});
 
-    return remote.ok && remote.data ? remote.data : newArtisan;
+    return newArtisan;
   },
 
   async updateArtisan(id: string, artisan: Partial<Artisan>): Promise<Artisan> {
@@ -543,13 +578,19 @@ export const api = {
     const current = getLocalItem<Artisan[]>('jit_custom_artisans', []);
     setLocalItem('jit_custom_artisans', [merged, ...current.filter(a => a.id !== id)]);
 
-    const remote = await safeFetchJson<Artisan>(`${API_BASE}/artisans/${id}`, {
+    try {
+      await fsSaveArtisan(merged);
+    } catch (e) {
+      console.warn('Failed to update artisan in Firestore:', e);
+    }
+
+    safeFetchJson<Artisan>(`${API_BASE}/artisans/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(artisan)
-    });
+    }).catch(() => {});
 
-    return remote.ok && remote.data ? remote.data : merged;
+    return merged;
   },
 
   async deleteArtisan(id: string): Promise<{ success: boolean }> {
@@ -557,10 +598,16 @@ export const api = {
     setLocalItem('jit_custom_artisans', current.filter(a => a.id !== id));
     recordDeleted('artisans', id);
 
-    await safeFetchJson<{ success: boolean }>(`${API_BASE}/artisans/${id}`, {
+    try {
+      await fsDeleteArtisan(id);
+    } catch (e) {
+      console.warn('Failed to delete artisan from Firestore:', e);
+    }
+
+    safeFetchJson<{ success: boolean }>(`${API_BASE}/artisans/${id}`, {
       method: 'DELETE',
       headers: getAuthHeaders()
-    });
+    }).catch(() => {});
 
     return { success: true };
   },
@@ -1457,24 +1504,44 @@ export const api = {
   // Craft Gallery (হাতের কাজের গ্যালারি)
   // ==========================================
   async getGallery(category?: string): Promise<GalleryItem[]> {
-    const local = getLocalItem<GalleryItem[]>('jit_custom_gallery', []);
-    let list = [...((staticDatabase.gallery || staticDatabase.galleryItems || []) as GalleryItem[])];
-    if (local.length > 0) {
-      const map = new Map<string, GalleryItem>();
-      list.forEach(g => map.set(g.id, g));
-      local.forEach(g => map.set(g.id, g));
-      list = Array.from(map.values());
+    // 1. Try Firebase Firestore Cloud Database
+    let list: GalleryItem[] = [];
+    let fromCloud = false;
+    try {
+      const fsItems = await fsGetGallery();
+      if (fsItems && fsItems.length > 0) {
+        list = fsItems;
+        fromCloud = true;
+        setLocalItem('jit_custom_gallery', fsItems);
+      }
+    } catch (e) {
+      console.warn('Firestore gallery fetch fallback:', e);
+    }
+
+    // 2. Fallback to local & static cache
+    if (!fromCloud) {
+      const local = getLocalItem<GalleryItem[]>('jit_custom_gallery', []);
+      list = [...((staticDatabase.gallery || staticDatabase.galleryItems || []) as GalleryItem[])];
+      if (local.length > 0) {
+        const map = new Map<string, GalleryItem>();
+        list.forEach(g => map.set(g.id, g));
+        local.forEach(g => map.set(g.id, g));
+        list = Array.from(map.values());
+      }
     }
     list = filterDeleted('gallery', list);
 
     const query = category && category !== 'All' ? `?category=${encodeURIComponent(category)}` : '';
     const remote = await safeFetchJson<GalleryItem[]>(`${API_BASE}/gallery${query}`);
-    if (remote.ok && Array.isArray(remote.data)) {
-      list = filterDeleted('gallery', remote.data);
+    if (remote.ok && Array.isArray(remote.data) && remote.data.length > 0) {
+      const map = new Map<string, GalleryItem>();
+      remote.data.forEach(g => map.set(g.id, g));
+      list.forEach(g => map.set(g.id, g));
+      list = filterDeleted('gallery', Array.from(map.values()));
     }
 
     if (category && category !== 'All') {
-      list = list.filter(g => g.category === category);
+      list = list.filter(g => g.category.toLowerCase() === category.toLowerCase());
     }
     return list;
   },
@@ -1494,30 +1561,46 @@ export const api = {
     const local = getLocalItem<GalleryItem[]>('jit_custom_gallery', []);
     setLocalItem('jit_custom_gallery', [newG, ...local.filter(g => g.id !== newG.id)]);
 
-    const remote = await safeFetchJson<GalleryItem>(`${API_BASE}/gallery`, {
+    // Save to Firebase Firestore Cloud
+    try {
+      await fsSaveGalleryItem(newG);
+    } catch (e) {
+      console.warn('Failed to save gallery item to Firestore:', e);
+    }
+
+    // Also attempt backend server update
+    safeFetchJson<GalleryItem>(`${API_BASE}/gallery`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(newG)
-    });
+    }).catch(() => {});
 
-    return remote.ok && remote.data ? remote.data : newG;
+    return newG;
   },
 
   async updateGalleryItem(id: string, item: Partial<GalleryItem>): Promise<GalleryItem> {
     const all = await this.getGallery();
     const existing = all.find(g => g.id === id) || { id } as GalleryItem;
-    const merged = { ...existing, ...item };
+    const merged: GalleryItem = { ...existing, ...item };
 
     const local = getLocalItem<GalleryItem[]>('jit_custom_gallery', []);
     setLocalItem('jit_custom_gallery', [merged, ...local.filter(g => g.id !== id)]);
 
-    const remote = await safeFetchJson<GalleryItem>(`${API_BASE}/gallery/${id}`, {
+    // Save to Firebase Firestore Cloud
+    try {
+      await fsSaveGalleryItem(merged);
+    } catch (e) {
+      console.warn('Failed to update gallery item in Firestore:', e);
+    }
+
+    // Also attempt backend server update
+    safeFetchJson<GalleryItem>(`${API_BASE}/gallery/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(item)
-    });
+    }).catch(() => {});
 
-    return remote.ok && remote.data ? remote.data : merged;
+    return merged;
   },
 
   async deleteGalleryItem(id: string): Promise<{ success: boolean }> {
@@ -1525,10 +1608,18 @@ export const api = {
     setLocalItem('jit_custom_gallery', local.filter(g => g.id !== id));
     recordDeleted('gallery', id);
 
-    await safeFetchJson<{ success: boolean }>(`${API_BASE}/gallery/${id}`, {
+    // Delete from Firebase Firestore Cloud
+    try {
+      await fsDeleteGalleryItem(id);
+    } catch (e) {
+      console.warn('Failed to delete gallery item from Firestore:', e);
+    }
+
+    // Also attempt backend server delete
+    safeFetchJson<{ success: boolean }>(`${API_BASE}/gallery/${id}`, {
       method: 'DELETE',
       headers: getAuthHeaders()
-    });
+    }).catch(() => {});
 
     return { success: true };
   },

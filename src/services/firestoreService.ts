@@ -16,7 +16,11 @@ import type {
   WorkerApplication,
   BulkEnquiryLead,
   Coupon,
-  CustomSection
+  CustomSection,
+  GalleryItem,
+  Artisan,
+  Testimonial,
+  TeamMember
 } from '../types';
 
 export enum OperationType {
@@ -45,9 +49,20 @@ export interface FirestoreErrorInfo {
   };
 }
 
+function isOfflineError(error: unknown): boolean {
+  if (!error) return false;
+  const msg = error instanceof Error ? error.message : String(error);
+  return (
+    msg.toLowerCase().includes('client is offline') ||
+    msg.toLowerCase().includes('unavailable') ||
+    msg.toLowerCase().includes('network')
+  );
+}
+
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
+  const errMsg = error instanceof Error ? error.message : String(error);
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errMsg,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -62,7 +77,11 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  if (isOfflineError(error)) {
+    console.warn(`Firestore [${path}] client is offline or database is initializing.`);
+  } else {
+    console.error('Firestore Error: ', JSON.stringify(errInfo));
+  }
   throw new Error(JSON.stringify(errInfo));
 }
 
@@ -92,6 +111,10 @@ export async function fsGetProducts(): Promise<Product[]> {
     });
     return items;
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] is offline or database is initializing.`);
+      return [];
+    }
     handleFirestoreError(error, OperationType.LIST, path);
   }
 }
@@ -101,6 +124,10 @@ export async function fsSaveProduct(product: Product): Promise<void> {
   try {
     await setDoc(doc(db, 'products', product.id), cleanData(product), { merge: true });
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] write offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
@@ -110,6 +137,10 @@ export async function fsDeleteProduct(id: string): Promise<void> {
   try {
     await deleteDoc(doc(db, 'products', id));
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] delete offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
@@ -127,6 +158,10 @@ export async function fsGetCategories(): Promise<Category[]> {
     });
     return items;
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] is offline or database is initializing.`);
+      return [];
+    }
     handleFirestoreError(error, OperationType.LIST, path);
   }
 }
@@ -136,6 +171,10 @@ export async function fsSaveCategory(category: Category): Promise<void> {
   try {
     await setDoc(doc(db, 'categories', category.id), cleanData(category), { merge: true });
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] write offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
@@ -145,6 +184,10 @@ export async function fsDeleteCategory(id: string): Promise<void> {
   try {
     await deleteDoc(doc(db, 'categories', id));
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] delete offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
@@ -162,6 +205,10 @@ export async function fsGetBanners(): Promise<BannerItem[]> {
     });
     return items;
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] is offline or database is initializing.`);
+      return [];
+    }
     handleFirestoreError(error, OperationType.LIST, path);
   }
 }
@@ -171,6 +218,10 @@ export async function fsSaveBanner(banner: BannerItem): Promise<void> {
   try {
     await setDoc(doc(db, 'banners', banner.id), cleanData(banner), { merge: true });
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] write offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
@@ -180,6 +231,10 @@ export async function fsDeleteBanner(id: string): Promise<void> {
   try {
     await deleteDoc(doc(db, 'banners', id));
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] delete offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
@@ -197,6 +252,10 @@ export async function fsGetVideos(): Promise<VideoItem[]> {
     });
     return items;
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] is offline or database is initializing.`);
+      return [];
+    }
     handleFirestoreError(error, OperationType.LIST, path);
   }
 }
@@ -206,6 +265,10 @@ export async function fsSaveVideo(video: VideoItem): Promise<void> {
   try {
     await setDoc(doc(db, 'videos', video.id), cleanData(video), { merge: true });
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] write offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
@@ -215,6 +278,10 @@ export async function fsDeleteVideo(id: string): Promise<void> {
   try {
     await deleteDoc(doc(db, 'videos', id));
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] delete offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
@@ -231,6 +298,10 @@ export async function fsGetSettings(): Promise<SiteSettings | null> {
     }
     return null;
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] is offline or database is initializing.`);
+      return null;
+    }
     handleFirestoreError(error, OperationType.GET, path);
   }
 }
@@ -240,6 +311,10 @@ export async function fsSaveSettings(settings: SiteSettings): Promise<void> {
   try {
     await setDoc(doc(db, 'settings', 'main'), cleanData(settings), { merge: true });
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] write offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
@@ -257,6 +332,10 @@ export async function fsGetWorkerApplications(): Promise<WorkerApplication[]> {
     });
     return items;
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] is offline or database is initializing.`);
+      return [];
+    }
     handleFirestoreError(error, OperationType.LIST, path);
   }
 }
@@ -266,6 +345,10 @@ export async function fsSaveWorkerApplication(app: WorkerApplication): Promise<v
   try {
     await setDoc(doc(db, 'workerApplications', app.id), cleanData(app), { merge: true });
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] write offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
@@ -275,6 +358,10 @@ export async function fsDeleteWorkerApplication(id: string): Promise<void> {
   try {
     await deleteDoc(doc(db, 'workerApplications', id));
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] delete offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
@@ -292,6 +379,10 @@ export async function fsGetLeads(): Promise<BulkEnquiryLead[]> {
     });
     return items;
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] is offline or database is initializing.`);
+      return [];
+    }
     handleFirestoreError(error, OperationType.LIST, path);
   }
 }
@@ -301,6 +392,10 @@ export async function fsSaveLead(lead: BulkEnquiryLead): Promise<void> {
   try {
     await setDoc(doc(db, 'leads', lead.id), cleanData(lead), { merge: true });
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] write offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
@@ -310,6 +405,10 @@ export async function fsDeleteLead(id: string): Promise<void> {
   try {
     await deleteDoc(doc(db, 'leads', id));
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] delete offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
@@ -327,6 +426,10 @@ export async function fsGetCoupons(): Promise<Coupon[]> {
     });
     return items;
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] is offline or database is initializing.`);
+      return [];
+    }
     handleFirestoreError(error, OperationType.LIST, path);
   }
 }
@@ -336,6 +439,10 @@ export async function fsSaveCoupon(coupon: Coupon): Promise<void> {
   try {
     await setDoc(doc(db, 'coupons', coupon.id), cleanData(coupon), { merge: true });
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] write offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
@@ -345,6 +452,10 @@ export async function fsDeleteCoupon(id: string): Promise<void> {
   try {
     await deleteDoc(doc(db, 'coupons', id));
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] delete offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
@@ -362,6 +473,10 @@ export async function fsGetCustomSections(): Promise<CustomSection[]> {
     });
     return items;
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] is offline or database is initializing.`);
+      return [];
+    }
     handleFirestoreError(error, OperationType.LIST, path);
   }
 }
@@ -371,6 +486,10 @@ export async function fsSaveCustomSection(section: CustomSection): Promise<void>
   try {
     await setDoc(doc(db, 'customSections', section.id), cleanData(section), { merge: true });
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] write offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
@@ -380,6 +499,199 @@ export async function fsDeleteCustomSection(id: string): Promise<void> {
   try {
     await deleteDoc(doc(db, 'customSections', id));
   } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] delete offline:`, error);
+      return;
+    }
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
+
+// ====================================================
+// Gallery Items (হাতের কাজের গ্যালারি)
+// ====================================================
+export async function fsGetGallery(): Promise<GalleryItem[]> {
+  const path = 'gallery';
+  try {
+    const snap = await getDocs(collection(db, path));
+    const items: GalleryItem[] = [];
+    snap.forEach(d => {
+      items.push({ id: d.id, ...d.data() } as GalleryItem);
+    });
+    return items;
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] is offline or database is initializing.`);
+      return [];
+    }
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+export async function fsSaveGalleryItem(item: GalleryItem): Promise<void> {
+  const path = `gallery/${item.id}`;
+  try {
+    await setDoc(doc(db, 'gallery', item.id), cleanData(item), { merge: true });
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] write offline:`, error);
+      return;
+    }
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function fsDeleteGalleryItem(id: string): Promise<void> {
+  const path = `gallery/${id}`;
+  try {
+    await deleteDoc(doc(db, 'gallery', id));
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] delete offline:`, error);
+      return;
+    }
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+// ====================================================
+// Artisans (কারিগর নেটওয়ার্ক)
+// ====================================================
+export async function fsGetArtisans(): Promise<Artisan[]> {
+  const path = 'artisans';
+  try {
+    const snap = await getDocs(collection(db, path));
+    const items: Artisan[] = [];
+    snap.forEach(d => {
+      items.push({ id: d.id, ...d.data() } as Artisan);
+    });
+    return items;
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] is offline or database is initializing.`);
+      return [];
+    }
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+export async function fsSaveArtisan(artisan: Artisan): Promise<void> {
+  const path = `artisans/${artisan.id}`;
+  try {
+    await setDoc(doc(db, 'artisans', artisan.id), cleanData(artisan), { merge: true });
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] write offline:`, error);
+      return;
+    }
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function fsDeleteArtisan(id: string): Promise<void> {
+  const path = `artisans/${id}`;
+  try {
+    await deleteDoc(doc(db, 'artisans', id));
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] delete offline:`, error);
+      return;
+    }
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+// ====================================================
+// Testimonials (গ্রাহক প্রতিক্রিয়া)
+// ====================================================
+export async function fsGetTestimonials(): Promise<Testimonial[]> {
+  const path = 'testimonials';
+  try {
+    const snap = await getDocs(collection(db, path));
+    const items: Testimonial[] = [];
+    snap.forEach(d => {
+      items.push({ id: d.id, ...d.data() } as Testimonial);
+    });
+    return items;
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] is offline or database is initializing.`);
+      return [];
+    }
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+export async function fsSaveTestimonial(testimonial: Testimonial): Promise<void> {
+  const path = `testimonials/${testimonial.id}`;
+  try {
+    await setDoc(doc(db, 'testimonials', testimonial.id), cleanData(testimonial), { merge: true });
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] write offline:`, error);
+      return;
+    }
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function fsDeleteTestimonial(id: string): Promise<void> {
+  const path = `testimonials/${id}`;
+  try {
+    await deleteDoc(doc(db, 'testimonials', id));
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] delete offline:`, error);
+      return;
+    }
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+// ====================================================
+// Team (টিম সদস্য)
+// ====================================================
+export async function fsGetTeam(): Promise<TeamMember[]> {
+  const path = 'team';
+  try {
+    const snap = await getDocs(collection(db, path));
+    const items: TeamMember[] = [];
+    snap.forEach(d => {
+      items.push({ id: d.id, ...d.data() } as TeamMember);
+    });
+    return items;
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] is offline or database is initializing.`);
+      return [];
+    }
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+export async function fsSaveTeam(member: TeamMember): Promise<void> {
+  const path = `team/${member.id}`;
+  try {
+    await setDoc(doc(db, 'team', member.id), cleanData(member), { merge: true });
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] write offline:`, error);
+      return;
+    }
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function fsDeleteTeam(id: string): Promise<void> {
+  const path = `team/${id}`;
+  try {
+    await deleteDoc(doc(db, 'team', id));
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] delete offline:`, error);
+      return;
+    }
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+

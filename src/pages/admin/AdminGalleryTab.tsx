@@ -18,6 +18,7 @@ import {
 import { GalleryItem } from '../../types';
 import { api } from '../../services/api';
 import { DeleteConfirmModal } from '../../components/DeleteConfirmModal';
+import { SingleImageUpload } from '../../components/ImageUploadField';
 
 const PREDEFINED_CATEGORIES = [
   'Handmade Jewellery',
@@ -299,9 +300,15 @@ export const AdminGalleryTab: React.FC = () => {
               <div>
                 <div className="relative aspect-4/3 bg-slate-100 overflow-hidden">
                   <img
-                    src={item.imageUrl}
+                    src={item.imageUrl || 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=600&q=80'}
                     alt={item.title}
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (!target.src.includes('unsplash')) {
+                        target.src = 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=600&q=80';
+                      }
+                    }}
                   />
                   <div className="absolute top-2.5 left-2.5">
                     <span className="px-2 py-0.5 rounded bg-slate-900/80 backdrop-blur-xs text-white text-[10px] font-medium">
@@ -386,47 +393,14 @@ export const AdminGalleryTab: React.FC = () => {
             <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
               
               {/* Image Upload Area */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-700">
-                  হাতের কাজের ছবি (Image from Device / Link) <span className="text-red-500">*</span>
-                </label>
-                
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleDeviceUpload}
-                    accept="image/*"
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadingImage}
-                    className="w-full sm:w-auto px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 border border-slate-200 transition-colors"
-                  >
-                    <Upload className="w-4 h-4 text-amber-600" />
-                    <span>{uploadingImage ? 'ছবি আপলোড হচ্ছে...' : 'ডিভাইস থেকে ছবি আপলোড (Device File)'}</span>
-                  </button>
-                  <span className="text-[11px] text-slate-400">বা নিচের বক্সে ছবির লিঙ্ক দিন</span>
-                </div>
-
-                <input
-                  type="text"
+              <div>
+                <SingleImageUpload
+                  label="হাতের কাজের ছবি (Craft Image) *"
+                  helperText="ডিভাইস থেকে যেকোনো সাইজের ছবি আপলোড করুন অথবা অনলাইন লিংক দিন"
                   value={formData.imageUrl || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
-                  placeholder="https://... অথবা ডিভাইস থেকে আপলোডকৃত লিংক"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:ring-1 focus:ring-slate-900"
+                  onChange={(url) => setFormData(prev => ({ ...prev, imageUrl: url }))}
+                  aspectRatio="wide"
                 />
-
-                {formData.imageUrl && (
-                  <div className="mt-2 relative w-32 aspect-4/3 rounded-lg overflow-hidden border border-slate-200 shadow-xs">
-                    <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
-                    <span className="absolute bottom-1 right-1 bg-slate-900/80 text-white text-[9px] px-1.5 py-0.5 rounded">
-                      প্রিভিউ
-                    </span>
-                  </div>
-                )}
               </div>
 
               {/* Title */}

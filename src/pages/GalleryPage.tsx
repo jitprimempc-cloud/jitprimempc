@@ -207,10 +207,16 @@ export const GalleryPage: React.FC<GalleryPageProps> = () => {
                   onClick={() => setActiveModalItem(item)}
                 >
                   <img
-                    src={item.imageUrl}
+                    src={item.imageUrl || 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=600&q=80'}
                     alt={item.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     loading="lazy"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (!target.src.includes('unsplash')) {
+                        target.src = 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=600&q=80';
+                      }
+                    }}
                   />
                   <div className="absolute top-3 left-3">
                     <span className="px-2.5 py-1 rounded-md bg-slate-900/80 backdrop-blur-xs text-white text-[11px] font-medium tracking-wide">
@@ -343,9 +349,15 @@ export const GalleryPage: React.FC<GalleryPageProps> = () => {
             <div className="p-6 overflow-y-auto space-y-4">
               <div className="w-full aspect-16/10 bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
                 <img
-                  src={activeModalItem.imageUrl}
+                  src={activeModalItem.imageUrl || 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=600&q=80'}
                   alt={activeModalItem.title}
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (!target.src.includes('unsplash')) {
+                      target.src = 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=600&q=80';
+                    }
+                  }}
                 />
               </div>
 
