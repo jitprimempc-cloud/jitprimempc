@@ -1,0 +1,184 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Handicraft product item in the catalog",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "category": { "type": "string" },
+        "retailPrice": { "type": "number" },
+        "bulkPrice": { "type": "number" },
+        "primaryImage": { "type": "string" },
+        "hidden": { "type": "boolean" },
+        "featured": { "type": "boolean" },
+        "orderIndex": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name", "slug"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Product category",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "description": { "type": "string" },
+        "image": { "type": "string" },
+        "hidden": { "type": "boolean" },
+        "orderIndex": { "type": "number" }
+      },
+      "required": ["name", "slug"]
+    },
+    "Banner": {
+      "title": "Banner",
+      "description": "Promotional or festive banner",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "image": { "type": "string" },
+        "ctaText": { "type": "string" },
+        "ctaLink": { "type": "string" },
+        "active": { "type": "boolean" },
+        "orderIndex": { "type": "number" }
+      },
+      "required": ["title"]
+    },
+    "Video": {
+      "title": "Video",
+      "description": "Craft and production video showcase",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "embedUrl": { "type": "string" },
+        "googleDriveUrl": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "thumbnailUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "featured": { "type": "boolean" },
+        "hidden": { "type": "boolean" },
+        "orderIndex": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title"]
+    },
+    "WorkerApplication": {
+      "title": "WorkerApplication",
+      "description": "Application from artisan or worker",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "whatsappNumber": { "type": "string" },
+        "location": { "type": "string" },
+        "craftSkill": { "type": "string" },
+        "experienceYears": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "phone"]
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "Bulk enquiry and quotation lead",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "phone"]
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Promotional coupon code",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "discountType": { "type": "string" },
+        "discountValue": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["code", "discountValue"]
+    },
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "Global company and website configuration",
+      "type": "object",
+      "properties": {
+        "companyName": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "fullAddress": { "type": "string" }
+      }
+    },
+    "CustomSection": {
+      "title": "CustomSection",
+      "description": "Custom dynamic homepage section",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "active": { "type": "boolean" },
+        "hidden": { "type": "boolean" },
+        "orderIndex": { "type": "number" }
+      },
+      "required": ["title"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Products catalog documents"
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Categories documents"
+    },
+    "/banners/{bannerId}": {
+      "schema": "Banner",
+      "description": "Banners documents"
+    },
+    "/videos/{videoId}": {
+      "schema": "Video",
+      "description": "Videos documents"
+    },
+    "/workerApplications/{workerApplicationId}": {
+      "schema": "WorkerApplication",
+      "description": "Worker applications documents"
+    },
+    "/leads/{leadId}": {
+      "schema": "Lead",
+      "description": "Bulk enquiry leads documents"
+    },
+    "/coupons/{couponId}": {
+      "schema": "Coupon",
+      "description": "Coupons documents"
+    },
+    "/settings/{settingsId}": {
+      "schema": "SiteSettings",
+      "description": "Site settings document"
+    },
+    "/customSections/{customSectionId}": {
+      "schema": "CustomSection",
+      "description": "Custom sections documents"
+    }
+  }
+}

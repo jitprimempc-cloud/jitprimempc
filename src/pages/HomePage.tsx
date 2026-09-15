@@ -733,9 +733,15 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
                 onClick={() => onNavigate(`/products/${product.slug || product.id}`)}
               >
                 <img
-                  src={product.primaryImage}
+                  src={product.primaryImage || (product.images && product.images[0]) || ((product as any).galleryImages && (product as any).galleryImages[0]) || 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=600&q=80'}
                   alt={product.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (!target.src.includes('unsplash')) {
+                      target.src = 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=600&q=80';
+                    }
+                  }}
                 />
                 
                 {/* Badges */}

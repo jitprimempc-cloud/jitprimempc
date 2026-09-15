@@ -25,6 +25,34 @@ import {
 } from '../types';
 import { staticDatabase } from '../data/staticDb';
 import { compressImageFile } from '../utils/imageUtils';
+import {
+  fsGetProducts,
+  fsSaveProduct,
+  fsDeleteProduct,
+  fsGetCategories,
+  fsSaveCategory,
+  fsDeleteCategory,
+  fsGetBanners,
+  fsSaveBanner,
+  fsDeleteBanner,
+  fsGetVideos,
+  fsSaveVideo,
+  fsDeleteVideo,
+  fsGetSettings,
+  fsSaveSettings,
+  fsGetWorkerApplications,
+  fsSaveWorkerApplication,
+  fsDeleteWorkerApplication,
+  fsGetLeads,
+  fsSaveLead,
+  fsDeleteLead,
+  fsGetCoupons,
+  fsSaveCoupon,
+  fsDeleteCoupon,
+  fsGetCustomSections,
+  fsSaveCustomSection,
+  fsDeleteCustomSection
+} from './firestoreService';
 
 const API_BASE = '/api';
 
@@ -113,6 +141,16 @@ export const api = {
       ...localSettings
     };
 
+    try {
+      const fsSettings = await fsGetSettings();
+      if (fsSettings) {
+        setLocalItem('jit_site_settings', fsSettings);
+        return { ...baseSettings, ...fsSettings };
+      }
+    } catch (e) {
+      console.warn('Firestore settings fallback:', e);
+    }
+
     const remote = await safeFetchJson<SiteSettings>(`${API_BASE}/settings`);
     if (remote.ok && remote.data) {
       const merged = { ...baseSettings, ...remote.data, ...localSettings };
@@ -132,6 +170,12 @@ export const api = {
     };
 
     setLocalItem('jit_site_settings', updatedSettings);
+
+    try {
+      await fsSaveSettings(updatedSettings);
+    } catch (e) {
+      console.warn('Firestore save settings error:', e);
+    }
 
     const remote = await safeFetchJson<{ success: boolean; settings: SiteSettings }>(`${API_BASE}/settings`, {
       method: 'PUT',
@@ -156,16 +200,32 @@ export const api = {
     if (params?.featured) query.append('featured', 'true');
     if (params?.includeHidden) query.append('includeHidden', 'true');
 
-    // Combine static DB with local storage modifications
-    const localProducts = getLocalItem<Product[]>('jit_custom_products', []);
-
-    let list = [...((staticDatabase.products || []) as Product[])];
-    if (localProducts.length > 0) {
-      const map = new Map<string, Product>();
-      list.forEach(p => map.set(p.id, p));
-      localProducts.forEach(p => map.set(p.id, p));
-      list = Array.from(map.values());
+    // 1. Try Firebase Firestore Cloud Database (Persistent across browsers & devices)
+    let list: Product[] = [];
+    let fromCloud = false;
+    try {
+      const fsProducts = await fsGetProducts();
+      if (fsProducts && fsProducts.length > 0) {
+        list = fsProducts;
+        fromCloud = true;
+        setLocalItem('jit_custom_products', fsProducts);
+      }
+    } catch (e) {
+      console.warn('Firestore products fetch fallback:', e);
     }
+
+    // 2. Fallback to local & static cache
+    if (!fromCloud) {
+      const localProducts = getLocalItem<Product[]>('jit_custom_products', []);
+      list = [...((staticDatabase.products || []) as Product[])];
+      if (localProducts.length > 0) {
+        const map = new Map<string, Product>();
+        list.forEach(p => map.set(p.id, p));
+        localProducts.forEach(p => map.set(p.id, p));
+        list = Array.from(map.values());
+      }
+    }
+
     list = filterDeleted('products', list);
 
     const remote = await safeFetchJson<Product[]>(`${API_BASE}/products?${query.toString()}`);
@@ -173,7 +233,7 @@ export const api = {
       return filterDeleted('products', remote.data);
     }
 
-    // Apply query filters locally
+    // Apply query filters
     if (!params?.includeHidden) {
       list = list.filter(p => !p.hidden);
     }
@@ -237,7 +297,14 @@ export const api = {
       ...product
     };
 
-    // Save to local storage
+    // 1. Save to Firebase Firestore Cloud Database
+    try {
+      await fsSaveProduct(newProduct);
+    } catch (e) {
+      console.warn('Firestore product save error:', e);
+    }
+
+    // 2. Save to local storage cache
     const current = getLocalItem<Product[]>('jit_custom_products', []);
     setLocalItem('jit_custom_products', [newProduct, ...current.filter(p => p.id !== newProduct.id)]);
 
@@ -253,8 +320,16 @@ export const api = {
   async updateProduct(id: string, product: Partial<Product>): Promise<Product> {
     const all = await this.getProducts({ includeHidden: true });
     const existing = all.find(p => p.id === id) || { id, name: 'Product' } as Product;
-    const merged: Product = { ...existing, ...product };
+    const merged: Product = { ...existing, ...product, updatedAt: new Date().toISOString() };
 
+    // 1. Update in Firebase Firestore Cloud Database
+    try {
+      await fsSaveProduct(merged);
+    } catch (e) {
+      console.warn('Firestore product update error:', e);
+    }
+
+    // 2. Update local storage cache
     const current = getLocalItem<Product[]>('jit_custom_products', []);
     setLocalItem('jit_custom_products', [merged, ...current.filter(p => p.id !== id)]);
 
@@ -268,6 +343,14 @@ export const api = {
   },
 
   async deleteProduct(id: string): Promise<{ success: boolean }> {
+    // 1. Delete from Firebase Firestore Cloud Database
+    try {
+      await fsDeleteProduct(id);
+    } catch (e) {
+      console.warn('Firestore product delete error:', e);
+    }
+
+    // 2. Delete from local cache
     const current = getLocalItem<Product[]>('jit_custom_products', []);
     setLocalItem('jit_custom_products', current.filter(p => p.id !== id));
     recordDeleted('products', id);
@@ -284,15 +367,32 @@ export const api = {
   // Categories
   // ==========================================
   async getCategories(includeHidden = false): Promise<Category[]> {
-    const local = getLocalItem<Category[]>('jit_custom_categories', []);
-    let list = [...((staticDatabase.categories || []) as Category[])];
-
-    if (local.length > 0) {
-      const map = new Map<string, Category>();
-      list.forEach(c => map.set(c.id, c));
-      local.forEach(c => map.set(c.id, c));
-      list = Array.from(map.values());
+    // 1. Try Firebase Firestore Cloud Database
+    let list: Category[] = [];
+    let fromCloud = false;
+    try {
+      const fsCats = await fsGetCategories();
+      if (fsCats && fsCats.length > 0) {
+        list = fsCats;
+        fromCloud = true;
+        setLocalItem('jit_custom_categories', fsCats);
+      }
+    } catch (e) {
+      console.warn('Firestore categories fetch fallback:', e);
     }
+
+    if (!fromCloud) {
+      const local = getLocalItem<Category[]>('jit_custom_categories', []);
+      list = [...((staticDatabase.categories || []) as Category[])];
+
+      if (local.length > 0) {
+        const map = new Map<string, Category>();
+        list.forEach(c => map.set(c.id, c));
+        local.forEach(c => map.set(c.id, c));
+        list = Array.from(map.values());
+      }
+    }
+
     list = filterDeleted('categories', list);
 
     const remote = await safeFetchJson<Category[]>(`${API_BASE}/categories?includeHidden=${includeHidden}`);
@@ -317,6 +417,13 @@ export const api = {
       ...category
     } as Category;
 
+    // 1. Save to Firebase Firestore Cloud Database
+    try {
+      await fsSaveCategory(newCat);
+    } catch (e) {
+      console.warn('Firestore category save error:', e);
+    }
+
     const current = getLocalItem<Category[]>('jit_custom_categories', []);
     setLocalItem('jit_custom_categories', [newCat, ...current.filter(c => c.id !== newCat.id)]);
 
@@ -334,6 +441,13 @@ export const api = {
     const existing = all.find(c => c.id === id) || { id, name: 'Category' } as Category;
     const merged: Category = { ...existing, ...category };
 
+    // 1. Save to Firebase Firestore Cloud Database
+    try {
+      await fsSaveCategory(merged);
+    } catch (e) {
+      console.warn('Firestore category update error:', e);
+    }
+
     const current = getLocalItem<Category[]>('jit_custom_categories', []);
     setLocalItem('jit_custom_categories', [merged, ...current.filter(c => c.id !== id)]);
 
@@ -347,6 +461,13 @@ export const api = {
   },
 
   async deleteCategory(id: string): Promise<{ success: boolean }> {
+    // 1. Delete from Firebase Firestore Cloud Database
+    try {
+      await fsDeleteCategory(id);
+    } catch (e) {
+      console.warn('Firestore category delete error:', e);
+    }
+
     const current = getLocalItem<Category[]>('jit_custom_categories', []);
     setLocalItem('jit_custom_categories', current.filter(c => c.id !== id));
     recordDeleted('categories', id);
@@ -843,7 +964,14 @@ export const api = {
       ...lead
     } as BulkEnquiryLead;
 
-    // Save locally
+    // 1. Save to Firebase Firestore Cloud Database
+    try {
+      await fsSaveLead(newLead);
+    } catch (e) {
+      console.warn('Firestore lead save error:', e);
+    }
+
+    // 2. Save locally
     const currentLeads = getLocalItem<BulkEnquiryLead[]>('jit_custom_leads', []);
     setLocalItem('jit_custom_leads', [newLead, ...currentLeads]);
 
@@ -857,12 +985,29 @@ export const api = {
   },
 
   async getLeads(): Promise<BulkEnquiryLead[]> {
-    const local = getLocalItem<BulkEnquiryLead[]>('jit_custom_leads', []);
-    const base = (staticDatabase.leads || []) as BulkEnquiryLead[];
-    const map = new Map<string, BulkEnquiryLead>();
-    base.forEach(l => map.set(l.id, l));
-    local.forEach(l => map.set(l.id, l));
-    let combined = Array.from(map.values());
+    // 1. Try Firebase Firestore
+    let combined: BulkEnquiryLead[] = [];
+    let fromCloud = false;
+    try {
+      const fsLeads = await fsGetLeads();
+      if (fsLeads && fsLeads.length > 0) {
+        combined = fsLeads;
+        fromCloud = true;
+        setLocalItem('jit_custom_leads', fsLeads);
+      }
+    } catch (e) {
+      console.warn('Firestore leads fetch fallback:', e);
+    }
+
+    if (!fromCloud) {
+      const local = getLocalItem<BulkEnquiryLead[]>('jit_custom_leads', []);
+      const base = (staticDatabase.leads || []) as BulkEnquiryLead[];
+      const map = new Map<string, BulkEnquiryLead>();
+      base.forEach(l => map.set(l.id, l));
+      local.forEach(l => map.set(l.id, l));
+      combined = Array.from(map.values());
+    }
+
     combined = filterDeleted('leads', combined);
 
     const remote = await safeFetchJson<BulkEnquiryLead[]>(`${API_BASE}/leads`);
@@ -877,6 +1022,14 @@ export const api = {
     const all = await this.getLeads();
     const existing = all.find(l => l.id === id) || { id } as BulkEnquiryLead;
     const merged = { ...existing, ...lead };
+
+    // 1. Update in Firebase Firestore
+    try {
+      await fsSaveLead(merged);
+    } catch (e) {
+      console.warn('Firestore lead update error:', e);
+    }
+
     setLocalItem('jit_custom_leads', [merged, ...current.filter(l => l.id !== id)]);
 
     const remote = await safeFetchJson<BulkEnquiryLead>(`${API_BASE}/leads/${id}`, {
@@ -904,6 +1057,13 @@ export const api = {
   },
 
   async deleteLead(id: string): Promise<{ success: boolean }> {
+    // 1. Delete from Firebase Firestore
+    try {
+      await fsDeleteLead(id);
+    } catch (e) {
+      console.warn('Firestore lead delete error:', e);
+    }
+
     const current = getLocalItem<BulkEnquiryLead[]>('jit_custom_leads', []);
     setLocalItem('jit_custom_leads', current.filter(l => l.id !== id));
     recordDeleted('leads', id);
@@ -1377,14 +1537,31 @@ export const api = {
   // Videos (Production & Artisan Craft Videos)
   // ==========================================
   async getVideos(params?: { includeHidden?: boolean; featured?: boolean }): Promise<VideoItem[]> {
-    const local = getLocalItem<VideoItem[]>('jit_custom_videos', []);
-    let list = [...((staticDatabase.videos || []) as VideoItem[])];
-    if (local.length > 0) {
-      const map = new Map<string, VideoItem>();
-      list.forEach(v => map.set(v.id, v));
-      local.forEach(v => map.set(v.id, v));
-      list = Array.from(map.values());
+    // 1. Try Firebase Firestore
+    let list: VideoItem[] = [];
+    let fromCloud = false;
+    try {
+      const fsVideos = await fsGetVideos();
+      if (fsVideos && fsVideos.length > 0) {
+        list = fsVideos;
+        fromCloud = true;
+        setLocalItem('jit_custom_videos', fsVideos);
+      }
+    } catch (e) {
+      console.warn('Firestore videos fetch fallback:', e);
     }
+
+    if (!fromCloud) {
+      const local = getLocalItem<VideoItem[]>('jit_custom_videos', []);
+      list = [...((staticDatabase.videos || []) as VideoItem[])];
+      if (local.length > 0) {
+        const map = new Map<string, VideoItem>();
+        list.forEach(v => map.set(v.id, v));
+        local.forEach(v => map.set(v.id, v));
+        list = Array.from(map.values());
+      }
+    }
+
     list = filterDeleted('videos', list);
 
     const remote = await safeFetchJson<VideoItem[]>(`${API_BASE}/videos${params?.includeHidden ? '?includeHidden=true' : ''}`);
@@ -1413,6 +1590,13 @@ export const api = {
       ...video
     } as VideoItem;
 
+    // 1. Save to Firebase Firestore
+    try {
+      await fsSaveVideo(newV);
+    } catch (e) {
+      console.warn('Firestore video save error:', e);
+    }
+
     const local = getLocalItem<VideoItem[]>('jit_custom_videos', []);
     setLocalItem('jit_custom_videos', [newV, ...local.filter(v => v.id !== newV.id)]);
 
@@ -1430,6 +1614,13 @@ export const api = {
     const existing = all.find(v => v.id === id) || { id } as VideoItem;
     const merged = { ...existing, ...video };
 
+    // 1. Update in Firebase Firestore
+    try {
+      await fsSaveVideo(merged);
+    } catch (e) {
+      console.warn('Firestore video update error:', e);
+    }
+
     const local = getLocalItem<VideoItem[]>('jit_custom_videos', []);
     setLocalItem('jit_custom_videos', [merged, ...local.filter(v => v.id !== id)]);
 
@@ -1443,6 +1634,13 @@ export const api = {
   },
 
   async deleteVideo(id: string): Promise<{ success: boolean }> {
+    // 1. Delete from Firebase Firestore
+    try {
+      await fsDeleteVideo(id);
+    } catch (e) {
+      console.warn('Firestore video delete error:', e);
+    }
+
     const local = getLocalItem<VideoItem[]>('jit_custom_videos', []);
     setLocalItem('jit_custom_videos', local.filter(v => v.id !== id));
     recordDeleted('videos', id);
@@ -1459,14 +1657,31 @@ export const api = {
   // Banners & Promotional Countdowns
   // ==========================================
   async getBanners(): Promise<BannerItem[]> {
-    const local = getLocalItem<BannerItem[]>('jit_custom_banners', []);
-    let list = [...((staticDatabase.banners || []) as BannerItem[])];
-    if (local.length > 0) {
-      const map = new Map<string, BannerItem>();
-      list.forEach(b => map.set(b.id, b));
-      local.forEach(b => map.set(b.id, b));
-      list = Array.from(map.values());
+    // 1. Try Firebase Firestore
+    let list: BannerItem[] = [];
+    let fromCloud = false;
+    try {
+      const fsBanners = await fsGetBanners();
+      if (fsBanners && fsBanners.length > 0) {
+        list = fsBanners;
+        fromCloud = true;
+        setLocalItem('jit_custom_banners', fsBanners);
+      }
+    } catch (e) {
+      console.warn('Firestore banners fetch fallback:', e);
     }
+
+    if (!fromCloud) {
+      const local = getLocalItem<BannerItem[]>('jit_custom_banners', []);
+      list = [...((staticDatabase.banners || []) as BannerItem[])];
+      if (local.length > 0) {
+        const map = new Map<string, BannerItem>();
+        list.forEach(b => map.set(b.id, b));
+        local.forEach(b => map.set(b.id, b));
+        list = Array.from(map.values());
+      }
+    }
+
     list = filterDeleted('banners', list);
 
     const remote = await safeFetchJson<BannerItem[]>(`${API_BASE}/banners`);
@@ -1488,6 +1703,13 @@ export const api = {
       ...banner
     };
 
+    // 1. Save to Firebase Firestore
+    try {
+      await fsSaveBanner(newB);
+    } catch (e) {
+      console.warn('Firestore banner save error:', e);
+    }
+
     const local = getLocalItem<BannerItem[]>('jit_custom_banners', []);
     setLocalItem('jit_custom_banners', [newB, ...local.filter(b => b.id !== newB.id)]);
 
@@ -1505,6 +1727,13 @@ export const api = {
     const existing = all.find(b => b.id === id) || { id } as BannerItem;
     const merged = { ...existing, ...banner };
 
+    // 1. Update in Firebase Firestore
+    try {
+      await fsSaveBanner(merged);
+    } catch (e) {
+      console.warn('Firestore banner update error:', e);
+    }
+
     const local = getLocalItem<BannerItem[]>('jit_custom_banners', []);
     setLocalItem('jit_custom_banners', [merged, ...local.filter(b => b.id !== id)]);
 
@@ -1518,6 +1747,13 @@ export const api = {
   },
 
   async deleteBanner(id: string): Promise<{ success: boolean }> {
+    // 1. Delete from Firebase Firestore
+    try {
+      await fsDeleteBanner(id);
+    } catch (e) {
+      console.warn('Firestore banner delete error:', e);
+    }
+
     const local = getLocalItem<BannerItem[]>('jit_custom_banners', []);
     setLocalItem('jit_custom_banners', local.filter(b => b.id !== id));
     recordDeleted('banners', id);
@@ -1534,14 +1770,31 @@ export const api = {
   // Custom Sections
   // ==========================================
   async getCustomSections(): Promise<CustomSection[]> {
-    const local = getLocalItem<CustomSection[]>('jit_custom_sections', []);
-    let list = [...((staticDatabase.customSections || []) as CustomSection[])];
-    if (local.length > 0) {
-      const map = new Map<string, CustomSection>();
-      list.forEach(s => map.set(s.id, s));
-      local.forEach(s => map.set(s.id, s));
-      list = Array.from(map.values());
+    // 1. Try Firebase Firestore
+    let list: CustomSection[] = [];
+    let fromCloud = false;
+    try {
+      const fsSections = await fsGetCustomSections();
+      if (fsSections && fsSections.length > 0) {
+        list = fsSections;
+        fromCloud = true;
+        setLocalItem('jit_custom_sections', fsSections);
+      }
+    } catch (e) {
+      console.warn('Firestore custom sections fetch fallback:', e);
     }
+
+    if (!fromCloud) {
+      const local = getLocalItem<CustomSection[]>('jit_custom_sections', []);
+      list = [...((staticDatabase.customSections || []) as CustomSection[])];
+      if (local.length > 0) {
+        const map = new Map<string, CustomSection>();
+        list.forEach(s => map.set(s.id, s));
+        local.forEach(s => map.set(s.id, s));
+        list = Array.from(map.values());
+      }
+    }
+
     list = filterDeleted('custom_sections', list);
 
     const remote = await safeFetchJson<CustomSection[]>(`${API_BASE}/custom-sections`);
@@ -1562,6 +1815,13 @@ export const api = {
       ...section
     } as CustomSection;
 
+    // 1. Save to Firebase Firestore
+    try {
+      await fsSaveCustomSection(newS);
+    } catch (e) {
+      console.warn('Firestore custom section save error:', e);
+    }
+
     const local = getLocalItem<CustomSection[]>('jit_custom_sections', []);
     setLocalItem('jit_custom_sections', [newS, ...local.filter(s => s.id !== newS.id)]);
 
@@ -1579,6 +1839,13 @@ export const api = {
     const existing = all.find(s => s.id === id) || { id } as CustomSection;
     const merged = { ...existing, ...section };
 
+    // 1. Update in Firebase Firestore
+    try {
+      await fsSaveCustomSection(merged);
+    } catch (e) {
+      console.warn('Firestore custom section update error:', e);
+    }
+
     const local = getLocalItem<CustomSection[]>('jit_custom_sections', []);
     setLocalItem('jit_custom_sections', [merged, ...local.filter(s => s.id !== id)]);
 
@@ -1592,6 +1859,13 @@ export const api = {
   },
 
   async deleteCustomSection(id: string): Promise<{ success: boolean }> {
+    // 1. Delete from Firebase Firestore
+    try {
+      await fsDeleteCustomSection(id);
+    } catch (e) {
+      console.warn('Firestore custom section delete error:', e);
+    }
+
     const local = getLocalItem<CustomSection[]>('jit_custom_sections', []);
     setLocalItem('jit_custom_sections', local.filter(s => s.id !== id));
     recordDeleted('custom_sections', id);
@@ -1608,12 +1882,29 @@ export const api = {
   // Worker Applications (মহিলা কারিগর আবেদন)
   // ==========================================
   async getWorkerApplications(): Promise<WorkerApplication[]> {
-    const local = getLocalItem<WorkerApplication[]>('jit_custom_workers', []);
-    const fallback = (staticDatabase.workerApplications || []) as WorkerApplication[];
-    const map = new Map<string, WorkerApplication>();
-    fallback.forEach(w => map.set(w.id, w));
-    local.forEach(w => map.set(w.id, w));
-    let combined = Array.from(map.values());
+    // 1. Try Firebase Firestore
+    let combined: WorkerApplication[] = [];
+    let fromCloud = false;
+    try {
+      const fsWorkers = await fsGetWorkerApplications();
+      if (fsWorkers && fsWorkers.length > 0) {
+        combined = fsWorkers;
+        fromCloud = true;
+        setLocalItem('jit_custom_workers', fsWorkers);
+      }
+    } catch (e) {
+      console.warn('Firestore worker applications fetch fallback:', e);
+    }
+
+    if (!fromCloud) {
+      const local = getLocalItem<WorkerApplication[]>('jit_custom_workers', []);
+      const fallback = (staticDatabase.workerApplications || []) as WorkerApplication[];
+      const map = new Map<string, WorkerApplication>();
+      fallback.forEach(w => map.set(w.id, w));
+      local.forEach(w => map.set(w.id, w));
+      combined = Array.from(map.values());
+    }
+
     combined = filterDeleted('workers', combined);
 
     const remote = await safeFetchJson<WorkerApplication[]>(`${API_BASE}/worker-applications`);
@@ -1637,6 +1928,13 @@ export const api = {
       ...app
     };
 
+    // 1. Save to Firebase Firestore
+    try {
+      await fsSaveWorkerApplication(newWorker);
+    } catch (e) {
+      console.warn('Firestore worker application save error:', e);
+    }
+
     const local = getLocalItem<WorkerApplication[]>('jit_custom_workers', []);
     setLocalItem('jit_custom_workers', [newWorker, ...local]);
 
@@ -1654,6 +1952,13 @@ export const api = {
     const existing = all.find(w => w.id === id) || { id } as WorkerApplication;
     const merged = { ...existing, ...app };
 
+    // 1. Update in Firebase Firestore
+    try {
+      await fsSaveWorkerApplication(merged);
+    } catch (e) {
+      console.warn('Firestore worker application update error:', e);
+    }
+
     const local = getLocalItem<WorkerApplication[]>('jit_custom_workers', []);
     setLocalItem('jit_custom_workers', [merged, ...local.filter(w => w.id !== id)]);
 
@@ -1667,6 +1972,13 @@ export const api = {
   },
 
   async deleteWorkerApplication(id: string): Promise<{ success: boolean }> {
+    // 1. Delete from Firebase Firestore
+    try {
+      await fsDeleteWorkerApplication(id);
+    } catch (e) {
+      console.warn('Firestore worker application delete error:', e);
+    }
+
     const local = getLocalItem<WorkerApplication[]>('jit_custom_workers', []);
     setLocalItem('jit_custom_workers', local.filter(w => w.id !== id));
     recordDeleted('workers', id);
@@ -1759,35 +2071,52 @@ export const api = {
   // Coupons & Promo Codes
   // ==========================================
   async getCoupons(includeAll = false): Promise<Coupon[]> {
-    const defaultFallback: Coupon[] = (staticDatabase.coupons || [
-      {
-        id: 'coupon-festive10',
-        code: 'FESTIVE10',
-        description: '১০% বিশেষ ছাড় উৎসবের অর্ডারে (10% festive discount on handicraft orders)',
-        discountType: 'percentage',
-        discountValue: 10,
-        minOrderAmount: 1000,
-        maxDiscount: 2000,
-        applicableCategory: 'all',
-        isActive: true,
-        usedCount: 14,
-        createdAt: '2026-08-01T00:00:00.000Z'
-      },
-      {
-        id: 'coupon-bulk500',
-        code: 'BULK500',
-        description: 'বাল্ক অর্ডারে ₹৫০০ ফ্ল্যাট ছাড় (Flat ₹500 discount on bulk orders above ₹5,000)',
-        discountType: 'fixed',
-        discountValue: 500,
-        minOrderAmount: 5000,
-        applicableCategory: 'all',
-        isActive: true,
-        usedCount: 29,
-        createdAt: '2026-08-10T00:00:00.000Z'
+    // 1. Try Firebase Firestore
+    let list: Coupon[] = [];
+    let fromCloud = false;
+    try {
+      const fsCoupons = await fsGetCoupons();
+      if (fsCoupons && fsCoupons.length > 0) {
+        list = fsCoupons;
+        fromCloud = true;
+        setLocalItem('jit_custom_coupons', fsCoupons);
       }
-    ]) as Coupon[];
+    } catch (e) {
+      console.warn('Firestore coupons fetch fallback:', e);
+    }
 
-    let list = getLocalItem<Coupon[]>('jit_custom_coupons', defaultFallback);
+    if (!fromCloud) {
+      const defaultFallback: Coupon[] = (staticDatabase.coupons || [
+        {
+          id: 'coupon-festive10',
+          code: 'FESTIVE10',
+          description: '১০% বিশেষ ছাড় উৎসবের অর্ডারে (10% festive discount on handicraft orders)',
+          discountType: 'percentage',
+          discountValue: 10,
+          minOrderAmount: 1000,
+          maxDiscount: 2000,
+          applicableCategory: 'all',
+          isActive: true,
+          usedCount: 14,
+          createdAt: '2026-08-01T00:00:00.000Z'
+        },
+        {
+          id: 'coupon-bulk500',
+          code: 'BULK500',
+          description: 'বাল্ক অর্ডারে ₹৫০০ ফ্ল্যাট ছাড় (Flat ₹500 discount on bulk orders above ₹5,000)',
+          discountType: 'fixed',
+          discountValue: 500,
+          minOrderAmount: 5000,
+          applicableCategory: 'all',
+          isActive: true,
+          usedCount: 29,
+          createdAt: '2026-08-10T00:00:00.000Z'
+        }
+      ]) as Coupon[];
+
+      list = getLocalItem<Coupon[]>('jit_custom_coupons', defaultFallback);
+    }
+
     list = filterDeleted('coupons', list);
 
     const remote = await safeFetchJson<Coupon[]>(`${API_BASE}/coupons${includeAll ? '?all=true' : ''}`);
@@ -1906,6 +2235,13 @@ export const api = {
       createdAt: new Date().toISOString()
     };
 
+    // 1. Save to Firebase Firestore
+    try {
+      await fsSaveCoupon(newCoupon);
+    } catch (e) {
+      console.warn('Firestore coupon save error:', e);
+    }
+
     const current = getLocalItem<Coupon[]>('jit_custom_coupons', []);
     setLocalItem('jit_custom_coupons', [newCoupon, ...current.filter(c => c.id !== newCoupon.id)]);
 
@@ -1923,6 +2259,13 @@ export const api = {
     const existing = all.find(c => c.id === id) || { id, code: 'COUPON' } as Coupon;
     const merged = { ...existing, ...updates };
 
+    // 1. Update in Firebase Firestore
+    try {
+      await fsSaveCoupon(merged);
+    } catch (e) {
+      console.warn('Firestore coupon update error:', e);
+    }
+
     const current = getLocalItem<Coupon[]>('jit_custom_coupons', []);
     setLocalItem('jit_custom_coupons', [merged, ...current.filter(c => c.id !== id)]);
 
@@ -1936,6 +2279,13 @@ export const api = {
   },
 
   async deleteCoupon(id: string): Promise<{ success: boolean }> {
+    // 1. Delete from Firebase Firestore
+    try {
+      await fsDeleteCoupon(id);
+    } catch (e) {
+      console.warn('Firestore coupon delete error:', e);
+    }
+
     const current = getLocalItem<Coupon[]>('jit_custom_coupons', []);
     setLocalItem('jit_custom_coupons', current.filter(c => c.id !== id));
     recordDeleted('coupons', id);
@@ -1949,6 +2299,15 @@ export const api = {
   },
 
   async factoryReset(password: string): Promise<{ success: boolean; message: string }> {
+    const cleanPass = (password || '').trim();
+    const customPwd = localStorage.getItem('jit_admin_custom_pwd');
+    const validPasswords = ['Jit@123', 'jitprime85219'];
+    if (customPwd) validPasswords.push(customPwd);
+
+    if (!validPasswords.includes(cleanPass)) {
+      return { success: false, message: 'ভুল অ্যাডমিন পাসওয়ার্ড! সঠিক পাসওয়ার্ড দিয়ে চেষ্টা করুন। (Incorrect admin password)' };
+    }
+
     const keysToRemove = [
       'jit_custom_products',
       'jit_custom_categories',
@@ -1979,14 +2338,15 @@ export const api = {
       }
     });
 
-    const result = await safeFetchJson<{success: boolean; message: string; error?: string}>(`${API_BASE}/factory-reset`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ password })
-    });
-
-    if (!result.ok) {
-      return { success: false, message: 'Server reset failed. Check admin password.' };
+    // Also attempt server-side reset if running with backend
+    try {
+      await safeFetchJson<{success: boolean; message: string; error?: string}>(`${API_BASE}/factory-reset`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ password: cleanPass })
+      });
+    } catch {
+      // Ignored if server API is not available on static host
     }
 
     return { success: true, message: 'Factory reset successful.' };

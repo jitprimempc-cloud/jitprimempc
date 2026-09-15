@@ -137,7 +137,12 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   }
 
   const phone = settings?.whatsappNumber || '+91 82405 85219';
-  const allImages = [product.primaryImage, ...(product.galleryImages || [])].filter(Boolean);
+  const allImages = Array.from(new Set([
+    product.primaryImage,
+    ...(product.images || []),
+    ...((product as any).galleryImages || [])
+  ])).filter(Boolean);
+  const fallbackProductImg = 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=800&q=80';
   const unitPrice = product.priceOnRequest ? 0 : (product.bulkPrice || product.retailPrice || 0);
   const subtotal = unitPrice * quantity;
   const discount = appliedCoupon?.valid ? (appliedCoupon.discountAmount || 0) : 0;
@@ -221,9 +226,15 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
         <div className="lg:col-span-6 space-y-4">
           <div className="relative aspect-4/3 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shadow-md">
             <img
-              src={activeImage || product.primaryImage}
+              src={activeImage || product.primaryImage || allImages[0] || fallbackProductImg}
               alt={product.name}
               className="w-full h-full object-cover transition-all duration-300"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                if (!target.src.includes('unsplash')) {
+                  target.src = fallbackProductImg;
+                }
+              }}
             />
             <div className="absolute top-3 left-3 flex flex-col gap-1.5">
               <span className="bg-[#0B1A30]/90 text-amber-400 text-xs font-extrabold uppercase px-2.5 py-1 rounded shadow-xs">

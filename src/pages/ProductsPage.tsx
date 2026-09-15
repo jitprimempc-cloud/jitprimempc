@@ -190,9 +190,15 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onNavigate, initialC
                 onClick={() => onNavigate(`/products/${product.slug || product.id}`)}
               >
                 <img
-                  src={product.primaryImage}
+                  src={product.primaryImage || (product.images && product.images[0]) || ((product as any).galleryImages && (product as any).galleryImages[0]) || 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=600&q=80'}
                   alt={product.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (!target.src.includes('unsplash')) {
+                      target.src = 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=600&q=80';
+                    }
+                  }}
                 />
                 
                 {/* Badges */}
@@ -208,10 +214,10 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onNavigate, initialC
                 </div>
 
                 {/* Additional gallery count pill */}
-                {product.galleryImages && product.galleryImages.length > 0 && (
+                {((product.images && product.images.length > 1) || (product.galleryImages && product.galleryImages.length > 0)) && (
                   <span className="absolute bottom-2 right-2 bg-slate-900/80 text-white text-[10px] font-semibold px-2 py-0.5 rounded backdrop-blur-xs flex items-center gap-1">
                     <Layers className="w-3 h-3" />
-                    +{product.galleryImages.length}
+                    +{(product.images?.length || product.galleryImages?.length || 1) - 1}
                   </span>
                 )}
               </div>

@@ -6,8 +6,8 @@
 
 export async function compressImageFile(
   file: File, 
-  maxDimension: number = 1400, 
-  quality: number = 0.82
+  maxDimension: number = 1000, 
+  quality: number = 0.72
 ): Promise<string> {
   // If not an image (e.g. PDF), convert directly to data URL
   if (!file.type.startsWith('image/')) {
@@ -72,6 +72,23 @@ export async function compressImageFile(
             }
           } catch {
             outputDataUrl = canvas.toDataURL('image/jpeg', quality);
+          }
+
+          // If still larger than 400KB, resize further to guarantee safety with Firestore
+          if (outputDataUrl.length > 500000) {
+            try {
+              const canvas2 = document.createElement('canvas');
+              canvas2.width = Math.round(width * 0.7);
+              canvas2.height = Math.round(height * 0.7);
+              const ctx2 = canvas2.getContext('2d');
+              if (ctx2) {
+                ctx2.imageSmoothingEnabled = true;
+                ctx2.drawImage(canvas, 0, 0, canvas2.width, canvas2.height);
+                outputDataUrl = canvas2.toDataURL('image/jpeg', 0.65);
+              }
+            } catch {
+              // keep current outputDataUrl
+            }
           }
 
           resolve(outputDataUrl);

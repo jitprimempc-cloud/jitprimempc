@@ -123,7 +123,7 @@ function getInitialDb(): DatabaseSchema {
         id: 'admin-monojit',
         username: 'monojit',
         email: 'monojitdey189@gmail.com',
-        passwordHash: 'jitprime85219',
+        passwordHash: 'Jit@123',
         role: 'superadmin'
       }
     ]

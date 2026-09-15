@@ -52,7 +52,8 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onSuccess, onCancel }) =
     const customPwd = localStorage.getItem('jit_admin_custom_pwd');
 
     const validUsers = [
-      { username: 'admin', email: 'admin@gmail.com', pass: ['Jit@123'], name: 'Admin', role: 'superadmin' }
+      { username: 'admin', email: 'admin@gmail.com', pass: ['Jit@123'], name: 'Admin', role: 'superadmin' },
+      { username: 'monojit', email: 'monojitdey189@gmail.com', pass: ['Jit@123'], name: 'Monojit Dey', role: 'superadmin' }
     ];
 
     const matched = validUsers.find(acc => {

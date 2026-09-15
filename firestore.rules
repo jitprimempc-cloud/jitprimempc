@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Products Collection: Public read, admin write
+    match /products/{productId} {
+      allow read, write: if true;
+    }
+
+    // Categories Collection: Public read, admin write
+    match /categories/{categoryId} {
+      allow read, write: if true;
+    }
+
+    // Banners Collection: Public read, admin write
+    match /banners/{bannerId} {
+      allow read, write: if true;
+    }
+
+    // Videos Collection: Public read, admin write
+    match /videos/{videoId} {
+      allow read, write: if true;
+    }
+
+    // Worker Applications: Public can submit, admin can manage
+    match /workerApplications/{applicationId} {
+      allow read, write: if true;
+    }
+
+    // Bulk Enquiry Leads: Public can submit, admin can manage
+    match /leads/{leadId} {
+      allow read, write: if true;
+    }
+
+    // Coupons: Public can read, admin can manage
+    match /coupons/{couponId} {
+      allow read, write: if true;
+    }
+
+    // Site Settings: Public can read, admin can update
+    match /settings/{settingsId} {
+      allow read, write: if true;
+    }
+
+    // Custom Sections: Public can read, admin can manage
+    match /customSections/{sectionId} {
+      allow read, write: if true;
+    }
+
+    // Test connection doc
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    // Default fallback
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

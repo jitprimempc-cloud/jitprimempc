@@ -288,9 +288,15 @@ export const AdminProductsTab: React.FC = () => {
                   <td className="p-3.5">
                     <div className="flex items-center gap-3">
                       <img
-                        src={product.primaryImage}
+                        src={product.primaryImage || (product.images && product.images[0]) || 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=600&q=80'}
                         alt={product.name}
                         className="w-12 h-12 rounded-lg object-cover bg-slate-100 shrink-0 border border-slate-200"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          if (!target.src.includes('unsplash')) {
+                            target.src = 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=600&q=80';
+                          }
+                        }}
                       />
                       <div>
                         <span className="font-bold text-slate-900 block line-clamp-1">{product.name}</span>
