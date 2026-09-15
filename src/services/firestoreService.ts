@@ -81,6 +81,8 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   };
   if (isOfflineError(error)) {
     console.warn(`Firestore [${path}] client is offline or database is initializing.`);
+  } else if (errMsg.includes('Missing or insufficient permissions')) {
+    console.warn(`Firestore [${path}] permissions error (expected if fallback is being used):`, errMsg);
   } else {
     console.error('Firestore Error: ', JSON.stringify(errInfo));
   }
