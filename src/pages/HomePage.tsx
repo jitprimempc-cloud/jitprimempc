@@ -1154,21 +1154,21 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             </div>
 
             <div className="relative aspect-video bg-black flex items-center justify-center">
-              {selectedVideoModal.videoUrl ? (
-                <video
-                  src={selectedVideoModal.videoUrl}
-                  controls
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-contain bg-black"
-                />
-              ) : selectedVideoModal.embedUrl ? (
+              {selectedVideoModal.embedUrl ? (
                 <iframe
                   src={selectedVideoModal.embedUrl}
                   title={selectedVideoModal.title}
                   className="w-full h-full border-0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
+                />
+              ) : selectedVideoModal.videoUrl && !selectedVideoModal.videoUrl.includes('drive.google.com') && !selectedVideoModal.videoUrl.includes('youtube.com') && !selectedVideoModal.videoUrl.includes('youtu.be') ? (
+                <video
+                  src={selectedVideoModal.videoUrl}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-contain bg-black"
                 />
               ) : (
                 <div className="p-8 text-center space-y-4 max-w-md">

@@ -57,9 +57,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, onNavigate }) => {
     { label: dict.nav_govt, route: '/government-institutional' },
     { label: dict.nav_international, route: '/international-buyers' },
     { label: dict.nav_about, route: '/about' },
-    ...(isArtisansMenuEnabled ? [
-      { label: currentLanguage === 'bn' ? 'আমাদের কারিগরবৃন্দ' : currentLanguage === 'hi' ? 'हमारे कारीगर' : 'Our Artisans', route: '/our-artisans' }
-    ] : []),
     { label: dict.nav_contact, route: '/contact' },
   ];
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Upload, Copy, Check, Trash2, Image, FileText, AlertCircle } from 'lucide-react';
 import { api } from '../../services/api';
 import { MediaFile } from '../../types';
+import { DeleteConfirmModal } from '../../components/DeleteConfirmModal';
 
 export const AdminMediaTab: React.FC = () => {
   const [media, setMedia] = useState<MediaFile[]>([]);
@@ -9,6 +10,8 @@ export const AdminMediaTab: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadMedia = async () => {
     setLoading(true);
@@ -53,13 +56,22 @@ export const AdminMediaTab: React.FC = () => {
     setTimeout(() => setCopiedId(null), 2500);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this media file?')) return;
+  const handleDeleteClick = (m: MediaFile) => {
+    setDeleteTarget({ id: m.id, name: m.originalName });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await api.deleteMediaFile(id);
-      setMedia(prev => prev.filter(m => m.id !== id));
+      await api.deleteMediaFile(deleteTarget.id);
+      setMedia(prev => prev.filter(m => m.id !== deleteTarget.id));
+      setDeleteTarget(null);
     } catch (err) {
       console.error('Delete failed:', err);
+      alert('মিডিয়া ফাইল মুছতে সমস্যা হয়েছে');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -147,8 +159,8 @@ export const AdminMediaTab: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDelete(item.id)}
-                      className="p-1 hover:text-red-600 rounded"
+                      onClick={() => handleDeleteClick(item)}
+                      className="p-1 hover:text-red-600 rounded cursor-pointer"
                       title="Delete"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -160,6 +172,17 @@ export const AdminMediaTab: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="মিডিয়া ফাইল মুছে ফেলা (Delete Media File)"
+        itemName={deleteTarget?.name}
+        message="আপনি কি নিশ্চিত যে এই মিডিয়া ফাইলটি স্থায়ীভাবে মুছে ফেলতে চান?"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
     </div>
   );

@@ -13,10 +13,12 @@ import {
   Edit2, 
   ExternalLink,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from 'lucide-react';
 import { WorkerApplication } from '../../types';
 import { api } from '../../services/api';
+import { DeleteConfirmModal } from '../../components/DeleteConfirmModal';
 
 const STATUS_OPTIONS: Array<WorkerApplication['status']> = [
   'New',
@@ -34,6 +36,8 @@ export const AdminWorkersTab: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
   const [notesText, setNotesText] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadApplications = async () => {
     setLoading(true);
@@ -67,6 +71,25 @@ export const AdminWorkersTab: React.FC = () => {
       setEditingNotesId(null);
     } catch (err) {
       console.error('Failed to save notes:', err);
+    }
+  };
+
+  const handleDeleteClick = (id: string, name: string) => {
+    setDeleteTarget({ id, name });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      await api.deleteWorkerApplication(deleteTarget.id);
+      setApplications(prev => prev.filter(a => a.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error('Failed to delete worker application:', err);
+      alert('আবেদনটি মুছতে সমস্যা হয়েছে');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -186,15 +209,25 @@ export const AdminWorkersTab: React.FC = () => {
                     </div>
                   </div>
 
-                  <select
-                    value={app.status || 'Applied'}
-                    onChange={e => handleStatusChange(app.id, e.target.value as any)}
-                    className="text-xs font-bold px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 focus:ring-2 focus:ring-amber-500 cursor-pointer"
-                  >
-                    {STATUS_OPTIONS.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={app.status || 'Applied'}
+                      onChange={e => handleStatusChange(app.id, e.target.value as any)}
+                      className="text-xs font-bold px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                    >
+                      {STATUS_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteClick(app.id, app.applicantName)}
+                      title="আবেদন মুছে ফেলুন (Delete Application)"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Details */}
@@ -293,6 +326,17 @@ export const AdminWorkersTab: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="আবেদনপত্র মুছে ফেলা (Delete Application)"
+        itemName={deleteTarget?.name}
+        message="আপনি কি নিশ্চিত যে এই প্রার্থীর আবেদনপত্রটি তালিকা থেকে স্থায়ীভাবে মুছে ফেলতে চান?"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
     </div>
   );

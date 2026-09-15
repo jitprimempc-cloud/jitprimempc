@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { FAQ } from '../../types';
+import { DeleteConfirmModal } from '../../components/DeleteConfirmModal';
 
 export const AdminAIKnowledgeTab: React.FC = () => {
   const [faqs, setFaqs] = useState<FAQ[]>([]);
@@ -29,6 +30,8 @@ export const AdminAIKnowledgeTab: React.FC = () => {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadFaqs = async () => {
     setLoading(true);
@@ -71,13 +74,21 @@ export const AdminAIKnowledgeTab: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this question from the AI & FAQ knowledge base?')) return;
+  const handleDeleteClick = (faq: FAQ) => {
+    setDeleteTarget({ id: faq.id, name: faq.question });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await api.deleteFaq(id);
-      setFaqs(prev => prev.filter(f => f.id !== id));
+      await api.deleteFaq(deleteTarget.id);
+      setFaqs(prev => prev.filter(f => f.id !== deleteTarget.id));
+      setDeleteTarget(null);
     } catch (err: any) {
       alert(err.message || 'Failed to delete FAQ');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -215,7 +226,7 @@ export const AdminAIKnowledgeTab: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handleDelete(f.id)}
+                onClick={() => handleDeleteClick(f)}
                 className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                 title="Delete FAQ"
               >
@@ -225,6 +236,17 @@ export const AdminAIKnowledgeTab: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="জ্ঞানভাণ্ডারের প্রশ্নোত্তর মুছে ফেলা (Delete FAQ)"
+        itemName={deleteTarget?.name}
+        message="আপনি কি নিশ্চিত যে এই প্রশ্নোত্তরটি এআই জ্ঞানভাণ্ডার থেকে স্থায়ীভাবে মুছে ফেলতে চান?"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       {/* Add / Edit Modal */}
       {isModalOpen && (

@@ -13,12 +13,16 @@ import {
 } from 'lucide-react';
 import { BannerItem } from '../../types';
 import { api } from '../../services/api';
+import { DeleteConfirmModal } from '../../components/DeleteConfirmModal';
+import { SingleImageUpload } from '../../components/ImageUploadField';
 
 export const AdminBannersTab: React.FC = () => {
   const [banners, setBanners] = useState<BannerItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBanner, setEditingBanner] = useState<BannerItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -98,13 +102,22 @@ export const AdminBannersTab: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this banner? / ব্যানারটি মুছে ফেলতে চান?')) return;
+  const handleDeleteClick = (banner: BannerItem) => {
+    setDeleteTarget({ id: banner.id, name: banner.title });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await api.deleteBanner(id);
-      setBanners(prev => prev.filter(b => b.id !== id));
+      await api.deleteBanner(deleteTarget.id);
+      setBanners(prev => prev.filter(b => b.id !== deleteTarget.id));
+      setDeleteTarget(null);
     } catch (err) {
       console.error('Failed to delete banner:', err);
+      alert('ব্যানার মুছে ফেলতে ব্যর্থ হয়েছে');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -238,8 +251,8 @@ export const AdminBannersTab: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDelete(ban.id)}
-                    className="p-1.5 text-red-500 hover:text-red-700 rounded-lg"
+                    onClick={() => handleDeleteClick(ban)}
+                    className="p-1.5 text-red-500 hover:text-red-700 rounded-lg cursor-pointer"
                     title="Delete"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -250,6 +263,17 @@ export const AdminBannersTab: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="ব্যানার মুছে ফেলা (Delete Banner)"
+        itemName={deleteTarget?.name}
+        message="আপনি কি নিশ্চিত যে এই ব্যানারটি হোমপেজ থেকে স্থায়ীভাবে মুছে ফেলতে চান?"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       {/* Add / Edit Banner Modal */}
       {isModalOpen && (
@@ -298,14 +322,17 @@ export const AdminBannersTab: React.FC = () => {
 
               <div>
                 <label className="block font-bold text-slate-800 mb-1">
-                  ব্যানার ছবির লিঙ্ক (Image URL)
+                  ব্যানার ছবি (Banner Image)
                 </label>
-                <input
-                  type="url"
-                  placeholder="https://... image url"
+                <div className="mb-2">
+                  <span className="text-[11px] text-amber-600 font-semibold block">Recommended Size: 1600x600 pixels (16:9 ratio)</span>
+                  <span className="text-[10px] text-slate-500">ব্যানার আপলোড করুন বা ড্র্যাগ করে ড্রপ করুন।</span>
+                </div>
+                <SingleImageUpload
+                  label=""
                   value={formData.image || ''}
-                  onChange={e => setFormData({ ...formData, image: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500"
+                  onChange={url => setFormData({ ...formData, image: url })}
+                  aspectRatio="video"
                 />
               </div>
 

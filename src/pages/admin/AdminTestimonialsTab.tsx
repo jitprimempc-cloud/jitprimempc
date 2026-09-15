@@ -16,13 +16,15 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { Testimonial } from '../../types';
+import { DeleteConfirmModal } from '../../components/DeleteConfirmModal';
 
 export const AdminTestimonialsTab: React.FC = () => {
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Form state for creating official testimonial
@@ -52,22 +54,24 @@ export const AdminTestimonialsTab: React.FC = () => {
     loadTestimonials();
   }, []);
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to permanently delete the review from "${name}"?\n\nআপনি কি নিশ্চিতভাবে এই রিভিউটি মুছে ফেলতে চান?`)) {
-      return;
-    }
+  const handleDeleteClick = (id: string, name: string) => {
+    setDeleteTarget({ id, name });
+  };
 
-    setDeletingId(id);
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await api.deleteTestimonial(id);
-      setTestimonials(prev => prev.filter(t => t.id !== id));
-      setFeedbackMsg({ type: 'success', text: `Review from "${name}" was successfully deleted.` });
+      await api.deleteTestimonial(deleteTarget.id);
+      setTestimonials(prev => prev.filter(t => t.id !== deleteTarget.id));
+      setFeedbackMsg({ type: 'success', text: `Review from "${deleteTarget.name}" was successfully deleted.` });
       setTimeout(() => setFeedbackMsg(null), 3000);
+      setDeleteTarget(null);
     } catch (err: any) {
       console.error('Failed to delete testimonial:', err);
       setFeedbackMsg({ type: 'error', text: 'Failed to delete review: ' + (err.message || 'Unknown error') });
     } finally {
-      setDeletingId(null);
+      setIsDeleting(false);
     }
   };
 
@@ -304,8 +308,7 @@ export const AdminTestimonialsTab: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => handleDelete(t.id, t.clientName)}
-                    disabled={deletingId === t.id}
+                    onClick={() => handleDeleteClick(t.id, t.clientName)}
                     className="p-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-600 transition-colors text-xs flex items-center gap-1 font-bold cursor-pointer"
                     title="Delete permanently"
                   >
@@ -318,6 +321,17 @@ export const AdminTestimonialsTab: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="রিভিউ মুছে ফেলা (Delete Testimonial)"
+        itemName={deleteTarget?.name}
+        message="আপনি কি নিশ্চিত যে এই কাস্টমার রিভিউটি স্থায়ীভাবে মুছে ফেলতে চান?"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       {/* Add Official Testimonial Modal */}
       {isModalOpen && (

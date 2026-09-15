@@ -271,21 +271,6 @@ export const TrainingLivelihoodPage: React.FC = () => {
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Select Training Program *
-                  </label>
-                  <select
-                    value={form.programId || ''}
-                    onChange={e => setForm({ ...form, programId: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
-                  >
-                    {programs.map(p => (
-                      <option key={p.id} value={p.id}>{p.title} ({p.duration})</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
                     Applicant Full Name *
                   </label>
                   <input

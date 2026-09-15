@@ -13,12 +13,15 @@ import {
 } from 'lucide-react';
 import { CustomSection } from '../../types';
 import { api } from '../../services/api';
+import { DeleteConfirmModal } from '../../components/DeleteConfirmModal';
 
 export const AdminCustomSectionsTab: React.FC = () => {
   const [sections, setSections] = useState<CustomSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSection, setEditingSection] = useState<CustomSection | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -101,13 +104,22 @@ export const AdminCustomSectionsTab: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this section? / এই সেকশনটি মুছে ফেলতে চান?')) return;
+  const handleDeleteClick = (sec: CustomSection) => {
+    setDeleteTarget({ id: sec.id, name: sec.title });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await api.deleteCustomSection(id);
-      setSections(prev => prev.filter(s => s.id !== id));
+      await api.deleteCustomSection(deleteTarget.id);
+      setSections(prev => prev.filter(s => s.id !== deleteTarget.id));
+      setDeleteTarget(null);
     } catch (err) {
       console.error('Failed to delete section:', err);
+      alert('সেকশনটি মুছতে সমস্যা হয়েছে');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -218,8 +230,8 @@ export const AdminCustomSectionsTab: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDelete(sec.id)}
-                  className="p-2 text-red-500 hover:text-red-700 rounded-lg"
+                  onClick={() => handleDeleteClick(sec)}
+                  className="p-2 text-red-500 hover:text-red-700 rounded-lg cursor-pointer"
                   title="Delete"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -229,6 +241,17 @@ export const AdminCustomSectionsTab: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="সেকশন মুছে ফেলা (Delete Custom Section)"
+        itemName={deleteTarget?.name}
+        message="আপনি কি নিশ্চিত যে এই কাস্টম সেকশনটি স্থায়ীভাবে মুছে ফেলতে চান?"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       {/* Add / Edit Section Modal */}
       {isModalOpen && (

@@ -43,6 +43,7 @@ import { AdminMediaTab } from './AdminMediaTab';
 import { AdminGalleryTab } from './AdminGalleryTab';
 import { AdminBengaliGuideTab } from './AdminBengaliGuideTab';
 import { AdminTestimonialsTab } from './AdminTestimonialsTab';
+import { AdminTeamTab } from './AdminTeamTab';
 
 interface AdminLayoutProps {
   onNavigate: (route: string) => void;
@@ -62,8 +63,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onNavigate }) => {
     { id: 'videos', label: 'Work & Craft Videos (কাজের ভিডিও)', icon: Video },
     { id: 'categories', label: 'Categories & Groups', icon: Layers },
     { id: 'leads', label: 'B2B Wholesale Leads', icon: Flame },
-    { id: 'workers', label: 'Worker Applications (মহিলা আবেদন)', icon: Users },
-    { id: 'artisans', label: 'Women Artisans Network', icon: Users },
+    { id: 'artisans', label: 'Our Artisans (আমাদের কারিগরবৃন্দ)', icon: Users },
+    { id: 'team', label: 'Our Team (আমাদের টিম - About)', icon: Users, badge: 'About' },
     { id: 'training', label: 'Training & Livelihood', icon: GraduationCap },
     { id: 'banners', label: 'Banners & Countdown (অফার ব্যানার)', icon: Sparkles },
     { id: 'sections', label: 'Custom Sections (কাস্টম সেকশন)', icon: Layers },
@@ -203,8 +204,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onNavigate }) => {
           {activeTab === 'videos' && <AdminVideosTab />}
           {activeTab === 'categories' && <AdminCategoriesTab />}
           {activeTab === 'leads' && <AdminLeadsTab />}
-          {activeTab === 'workers' && <AdminWorkersTab />}
           {activeTab === 'artisans' && <AdminArtisansTab />}
+          {activeTab === 'team' && <AdminTeamTab />}
           {activeTab === 'banners' && <AdminBannersTab />}
           {activeTab === 'sections' && <AdminCustomSectionsTab />}
           {activeTab === 'training' && <AdminTrainingTab />}

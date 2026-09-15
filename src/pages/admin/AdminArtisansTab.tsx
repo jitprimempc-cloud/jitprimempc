@@ -4,6 +4,7 @@ import { api } from '../../services/api';
 import { Artisan } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { SingleImageUpload } from '../../components/ImageUploadField';
+import { DeleteConfirmModal } from '../../components/DeleteConfirmModal';
 
 export const AdminArtisansTab: React.FC = () => {
   const { settings, navigation, refreshData } = useApp();
@@ -12,6 +13,8 @@ export const AdminArtisansTab: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingArtisan, setEditingArtisan] = useState<Artisan | null>(null);
   const [menuToggling, setMenuToggling] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const isMenuVisible = settings?.showArtisansMenu !== false && !(navigation || []).find(n => n.route === '/our-artisans' || n.route === '/artisans')?.hidden;
 
@@ -70,7 +73,7 @@ export const AdminArtisansTab: React.FC = () => {
     setEditingArtisan(null);
     setFormData({
       name: '',
-      photo: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=600&q=80',
+      photo: '',
       craft: 'Terracotta Jewellery Crafting',
       broadLocation: 'Nimta, Kolkata',
       experienceYears: 5,
@@ -97,13 +100,22 @@ export const AdminArtisansTab: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this artisan profile?')) return;
+  const handleDeleteClick = (artisan: Artisan) => {
+    setDeleteTarget({ id: artisan.id, name: artisan.name });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await api.deleteArtisan(id);
-      setArtisans(prev => prev.filter(a => a.id !== id));
+      await api.deleteArtisan(deleteTarget.id);
+      setArtisans(prev => prev.filter(a => a.id !== deleteTarget.id));
+      setDeleteTarget(null);
     } catch (err) {
       console.error('Delete failed:', err);
+      alert('কারিগর প্রোফাইল মুছতে সমস্যা হয়েছে');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -206,11 +218,20 @@ export const AdminArtisansTab: React.FC = () => {
         {artisans.map(artisan => (
           <div key={artisan.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs p-4 flex flex-col justify-between space-y-3">
             <div className="flex items-center gap-3">
-              <img
-                src={artisan.photo}
-                alt={artisan.name}
-                className="w-16 h-16 rounded-xl object-cover border border-slate-200"
-              />
+              {artisan.photo ? (
+                <img
+                  src={artisan.photo}
+                  alt={artisan.name}
+                  className="w-16 h-16 rounded-xl object-cover border border-slate-200"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-xl bg-amber-100 text-amber-900 border border-amber-300 font-bold flex items-center justify-center text-lg shrink-0">
+                  {artisan.name ? artisan.name.charAt(0).toUpperCase() : <Users className="w-6 h-6" />}
+                </div>
+              )}
               <div>
                 <h4 className="font-bold text-slate-900 text-sm">{artisan.name}</h4>
                 <p className="text-xs text-amber-700 font-semibold">{artisan.craft}</p>
@@ -237,8 +258,9 @@ export const AdminArtisansTab: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDelete(artisan.id)}
-                  className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50"
+                  onClick={() => handleDeleteClick(artisan)}
+                  className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 cursor-pointer"
+                  title="Delete Artisan"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -247,6 +269,17 @@ export const AdminArtisansTab: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="কারিগর প্রোফাইল মুছে ফেলা (Delete Artisan)"
+        itemName={deleteTarget?.name}
+        message="আপনি কি নিশ্চিত যে এই কারিগরের প্রোফাইল স্থায়ীভাবে মুছে ফেলতে চান?"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       {/* Modal */}
       {isModalOpen && (
@@ -267,17 +300,19 @@ export const AdminArtisansTab: React.FC = () => {
 
             <form onSubmit={handleSave} className="p-6 overflow-y-auto space-y-4 text-xs sm:text-sm">
               <SingleImageUpload
-                label="Artisan Portrait Photo (Upload from Device) *"
+                label="Artisan Portrait Photo / ছবি (Upload from Device or URL - ছবি ঐচ্ছিক)"
+                helperText="ডিভাইস থেকে ছবি আপলোড করতে পারেন বা ছবির লিঙ্ক পেস্ট করতে পারেন। ছবি না দিলেও সেভ করা যাবে।"
                 value={formData.photo || ''}
                 onChange={url => setFormData({ ...formData, photo: url })}
                 aspectRatio="portrait"
               />
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Artisan Full Name *</label>
+                <label className="block font-bold text-slate-700 mb-1">Artisan Name / Title (নাম বা উপাধি/টাইটেল) *</label>
                 <input
                   type="text"
                   required
+                  placeholder="যেমন: Sukumar Karmakar অথবা Master Dokra Artisan"
                   value={formData.name || ''}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl"

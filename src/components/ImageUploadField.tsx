@@ -18,7 +18,7 @@ interface SingleImageUploadProps {
   helperText?: string;
   value: string;
   onChange: (url: string) => void;
-  aspectRatio?: 'square' | 'wide' | 'avatar';
+  aspectRatio?: 'square' | 'wide' | 'avatar' | 'portrait';
 }
 
 export const SingleImageUpload: React.FC<SingleImageUploadProps> = ({
@@ -69,6 +69,7 @@ export const SingleImageUpload: React.FC<SingleImageUploadProps> = ({
   const aspectClass = 
     aspectRatio === 'square' ? 'aspect-square max-w-[200px]' :
     aspectRatio === 'avatar' ? 'w-24 h-24 rounded-full' :
+    aspectRatio === 'portrait' ? 'aspect-3/4 max-w-[220px]' :
     'aspect-video max-w-sm';
 
   return (

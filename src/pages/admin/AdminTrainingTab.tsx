@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, BookOpen, Users, MessageCircle, Clock, MapPin, X, Save, CheckCircle2 } from 'lucide-react';
 import { api } from '../../services/api';
 import { TrainingProgram, TrainingApplication } from '../../types';
+import { DeleteConfirmModal } from '../../components/DeleteConfirmModal';
 
 export const AdminTrainingTab: React.FC = () => {
   const [subTab, setSubTab] = useState<'programs' | 'applications'>('programs');
   const [programs, setPrograms] = useState<TrainingProgram[]>([]);
   const [applications, setApplications] = useState<TrainingApplication[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Program form
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -74,13 +77,22 @@ export const AdminTrainingTab: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDeleteProgram = async (id: string) => {
-    if (!window.confirm('Delete this program?')) return;
+  const handleDeleteClick = (prog: TrainingProgram) => {
+    setDeleteTarget({ id: prog.id, name: prog.title });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await api.deleteTrainingProgram(id);
-      setPrograms(prev => prev.filter(p => p.id !== id));
+      await api.deleteTrainingProgram(deleteTarget.id);
+      setPrograms(prev => prev.filter(p => p.id !== deleteTarget.id));
+      setDeleteTarget(null);
     } catch (err) {
       console.error('Delete failed:', err);
+      alert('প্রোগ্রাম মুছতে সমস্যা হয়েছে');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -191,8 +203,8 @@ export const AdminTrainingTab: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDeleteProgram(prog.id)}
-                    className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg"
+                    onClick={() => handleDeleteClick(prog)}
+                    className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -378,6 +390,17 @@ export const AdminTrainingTab: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="ট্রেনিং প্রোগ্রাম মুছে ফেলা (Delete Training Program)"
+        itemName={deleteTarget?.name}
+        message="আপনি কি নিশ্চিত যে এই ট্রেনিং কোর্সটি স্থায়ীভাবে মুছে ফেলতে চান?"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
     </div>
   );

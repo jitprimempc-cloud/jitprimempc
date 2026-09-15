@@ -18,6 +18,7 @@ import {
 import { api } from '../../services/api';
 import { Product, Category } from '../../types';
 import { SingleImageUpload, MultipleImageUpload } from '../../components/ImageUploadField';
+import { DeleteConfirmModal } from '../../components/DeleteConfirmModal';
 
 export const AdminProductsTab: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -29,6 +30,8 @@ export const AdminProductsTab: React.FC = () => {
   // Form modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [formData, setFormData] = useState<Partial<Product>>({
     name: '',
     slug: '',
@@ -38,7 +41,7 @@ export const AdminProductsTab: React.FC = () => {
     fullDescription: '',
     craftStory: '',
     primaryImage: '',
-    galleryImages: [],
+    images: [],
     materials: ['Natural terracotta clay', 'Organic pigments'],
     dimensions: '',
     weight: '',
@@ -90,7 +93,7 @@ export const AdminProductsTab: React.FC = () => {
       fullDescription: '',
       craftStory: '',
       primaryImage: 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=800&q=80',
-      galleryImages: [],
+      images: [],
       materials: ['Natural terracotta clay', 'Organic pigments'],
       dimensions: 'Custom',
       weight: '40g',
@@ -130,13 +133,22 @@ export const AdminProductsTab: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this product?')) return;
+  const handleDeleteClick = (product: Product) => {
+    setDeleteTarget({ id: product.id, name: product.name });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await api.deleteProduct(id);
-      setProducts(prev => prev.filter(p => p.id !== id));
+      await api.deleteProduct(deleteTarget.id);
+      setProducts(prev => prev.filter(p => p.id !== deleteTarget.id));
+      setDeleteTarget(null);
     } catch (err) {
       console.error('Delete failed:', err);
+      alert('প্রোডাক্ট মুছতে সমস্যা হয়েছে');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -342,8 +354,8 @@ export const AdminProductsTab: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDelete(product.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                      onClick={() => handleDeleteClick(product)}
+                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
                       title="Delete Product"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -402,9 +414,9 @@ export const AdminProductsTab: React.FC = () => {
                   <div>
                     <MultipleImageUpload
                       label="Additional Gallery Images"
-                      images={formData.galleryImages || []}
+                      images={formData.images || []}
                       primaryImage={formData.primaryImage || ''}
-                      onImagesChange={imgs => setFormData({ ...formData, galleryImages: imgs })}
+                      onImagesChange={imgs => setFormData({ ...formData, images: imgs })}
                       onPrimaryChange={pUrl => setFormData({ ...formData, primaryImage: pUrl })}
                     />
                   </div>
@@ -441,15 +453,21 @@ export const AdminProductsTab: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Craft Category</label>
-                  <select
-                    value={formData.category || ''}
-                    onChange={e => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl"
-                  >
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  {categories.length > 0 ? (
+                    <select
+                      value={formData.category || ''}
+                      onChange={e => setFormData({ ...formData, category: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl"
+                    >
+                      {categories.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="w-full px-3 py-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl text-xs font-medium">
+                      No categories found. Please add a category in the Categories tab first before adding a product.
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Production Status</label>
@@ -563,6 +581,17 @@ export const AdminProductsTab: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="প্রোডাক্ট মুছে ফেলা (Delete Product)"
+        itemName={deleteTarget?.name}
+        message="আপনি কি নিশ্চিত যে এই প্রোডাক্টটি ক্যাটালগ ও ওয়েবসাইট থেকে স্থায়ীভাবে মুছে ফেলতে চান?"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
     </div>
   );

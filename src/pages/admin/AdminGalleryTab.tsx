@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { GalleryItem } from '../../types';
 import { api } from '../../services/api';
+import { DeleteConfirmModal } from '../../components/DeleteConfirmModal';
 
 const PREDEFINED_CATEGORIES = [
   'Handmade Jewellery',
@@ -38,6 +39,8 @@ export const AdminGalleryTab: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<GalleryItem | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [customCategoryMode, setCustomCategoryMode] = useState(false);
   
   // Form State
@@ -164,16 +167,22 @@ export const AdminGalleryTab: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string, title: string) => {
-    if (!confirm(`আপনি কি নিশ্চিত যে "${title}" ছবিটি গ্যালারি থেকে মুছে ফেলতে চান?`)) {
-      return;
-    }
+  const handleDeleteClick = (id: string, title: string) => {
+    setDeleteTarget({ id, name: title });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await api.deleteGalleryItem(id);
+      await api.deleteGalleryItem(deleteTarget.id);
+      setDeleteTarget(null);
       loadGallery();
     } catch (err) {
       console.error('Failed to delete item:', err);
       alert('মুছে ফেলতে সমস্যা হয়েছে।');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -342,8 +351,8 @@ export const AdminGalleryTab: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => handleDelete(item.id, item.title)}
-                  className="px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1"
+                  onClick={() => handleDeleteClick(item.id, item.title)}
+                  className="px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5 text-red-500" />
                   <span>ডিলিট</span>
@@ -551,6 +560,17 @@ export const AdminGalleryTab: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="গ্যালারি ছবি মুছে ফেলা (Delete Gallery Item)"
+        itemName={deleteTarget?.name}
+        message="আপনি কি নিশ্চিত যে এই গ্যালারি আইটেমটি স্থায়ীভাবে মুছে ফেলতে চান?"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
     </div>
   );

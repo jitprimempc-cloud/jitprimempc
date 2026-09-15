@@ -15,12 +15,15 @@ import {
 import { api } from '../../services/api';
 import { Category } from '../../types';
 import { SingleImageUpload } from '../../components/ImageUploadField';
+import { DeleteConfirmModal } from '../../components/DeleteConfirmModal';
 
 export const AdminCategoriesTab: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [formData, setFormData] = useState<Partial<Category>>({
     name: '',
     slug: '',
@@ -77,13 +80,21 @@ export const AdminCategoriesTab: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this category?')) return;
+  const handleDeleteClick = (category: Category) => {
+    setDeleteTarget({ id: category.id, name: category.name });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await api.deleteCategory(id);
-      setCategories(prev => prev.filter(c => c.id !== id));
+      await api.deleteCategory(deleteTarget.id);
+      setCategories(prev => prev.filter(c => c.id !== deleteTarget.id));
+      setDeleteTarget(null);
     } catch (err: any) {
       alert(err.message || 'Failed to delete category');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -231,7 +242,7 @@ export const AdminCategoriesTab: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDelete(c.id)}
+                    onClick={() => handleDeleteClick(c)}
                     className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                     title="Delete Category"
                   >
@@ -346,6 +357,17 @@ export const AdminCategoriesTab: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="ক্যাটাগরি মুছে ফেলা (Delete Category)"
+        itemName={deleteTarget?.name}
+        message="আপনি কি নিশ্চিত যে এই ক্যাটাগরি এবং এর সম্পর্কিত তথ্য স্থায়ীভাবে মুছে ফেলতে চান?"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
     </div>
   );

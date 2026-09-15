@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Building2, Calendar, Award, X, Save, CheckCircle2 } from 'lucide-react';
 import { api } from '../../services/api';
 import { GovernmentTender } from '../../types';
+import { DeleteConfirmModal } from '../../components/DeleteConfirmModal';
 
 export const AdminTendersTab: React.FC = () => {
   const [tenders, setTenders] = useState<GovernmentTender[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTender, setEditingTender] = useState<GovernmentTender | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [formData, setFormData] = useState<Partial<GovernmentTender>>({
     title: '',
@@ -64,13 +67,22 @@ export const AdminTendersTab: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this tender record?')) return;
+  const handleDeleteClick = (t: GovernmentTender) => {
+    setDeleteTarget({ id: t.id, name: t.title });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await api.deleteTender(id);
-      setTenders(prev => prev.filter(t => t.id !== id));
+      await api.deleteTender(deleteTarget.id);
+      setTenders(prev => prev.filter(t => t.id !== deleteTarget.id));
+      setDeleteTarget(null);
     } catch (err) {
       console.error('Delete failed:', err);
+      alert('টেন্ডার রেকর্ড মুছতে সমস্যা হয়েছে');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -142,8 +154,8 @@ export const AdminTendersTab: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDelete(t.id)}
-                  className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg"
+                  onClick={() => handleDeleteClick(t)}
+                  className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -152,6 +164,17 @@ export const AdminTendersTab: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="টেন্ডার রেকর্ড মুছে ফেলা (Delete Tender)"
+        itemName={deleteTarget?.name}
+        message="আপনি কি নিশ্চিত যে এই সরকারি টেন্ডার রেকর্ডটি স্থায়ীভাবে মুছে ফেলতে চান?"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">

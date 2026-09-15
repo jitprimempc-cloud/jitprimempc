@@ -434,6 +434,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           <p className="pt-2 text-slate-400 font-medium">
             Design by : <a href="tel:9475388085" className="text-amber-400 hover:text-amber-300 font-semibold transition-colors">DigiMoms Agency (9475388085)</a>
           </p>
+          <div className="pt-2 text-[10px] text-slate-600/40 select-none tracking-widest uppercase font-mono">
+            version 1.1
+          </div>
         </div>
       </div>
     </footer>

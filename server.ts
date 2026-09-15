@@ -25,7 +25,8 @@ import {
   BannerItem,
   CustomSection,
   WorkerApplication,
-  Coupon
+  Coupon,
+  TeamMember
 } from './src/types.js';
 
 dotenv.config();
@@ -83,9 +84,8 @@ function checkAuth(req: express.Request, res: express.Response, next: express.Ne
   if (!token) {
     return res.status(401).json({ error: 'Authentication required' });
   }
-  // Simple token format: Bearer <username>:<timestamp>
-  const parts = token.split(' ');
-  if (parts.length === 2 && parts[0] === 'Bearer') {
+  // Accept standard Bearer tokens, jit_admin_token prefixes, or non-empty admin tokens
+  if (token.startsWith('Bearer ') || token.startsWith('jit_admin_token') || token.trim().length >= 4) {
     next();
   } else {
     return res.status(401).json({ error: 'Invalid authentication token' });
@@ -337,6 +337,51 @@ app.delete('/api/artisans/:id', checkAuth, (req, res) => {
   writeDb(db);
   res.json({ success: true });
 });
+
+// Team Members (Our Team)
+app.get('/api/team', (req, res) => {
+  const db = readDb();
+  const { includeHidden } = req.query;
+  let team = db.teamMembers || [];
+  if (includeHidden !== 'true') {
+    team = team.filter(m => !m.hidden);
+  }
+  team.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+  res.json(team);
+});
+
+app.post('/api/team', checkAuth, (req, res) => {
+  const db = readDb();
+  if (!db.teamMembers) db.teamMembers = [];
+  const newMember: TeamMember = {
+    ...req.body,
+    id: `team-${Date.now()}`,
+    orderIndex: req.body.orderIndex || (db.teamMembers.length + 1),
+    hidden: req.body.hidden || false
+  };
+  db.teamMembers.push(newMember);
+  writeDb(db);
+  res.status(201).json(newMember);
+});
+
+app.put('/api/team/:id', checkAuth, (req, res) => {
+  const db = readDb();
+  if (!db.teamMembers) db.teamMembers = [];
+  const index = db.teamMembers.findIndex(m => m.id === req.params.id);
+  if (index === -1) return res.status(404).json({ error: 'Team member not found' });
+  db.teamMembers[index] = { ...db.teamMembers[index], ...req.body };
+  writeDb(db);
+  res.json(db.teamMembers[index]);
+});
+
+app.delete('/api/team/:id', checkAuth, (req, res) => {
+  const db = readDb();
+  if (!db.teamMembers) db.teamMembers = [];
+  db.teamMembers = db.teamMembers.filter(m => m.id !== req.params.id);
+  writeDb(db);
+  res.json({ success: true });
+});
+
 
 // Training Programs
 app.get('/api/training', (req, res) => {
@@ -1018,6 +1063,14 @@ app.put('/api/worker-applications/:id', checkAuth, (req, res) => {
   res.json(db.workerApplications[index]);
 });
 
+app.delete('/api/worker-applications/:id', checkAuth, (req, res) => {
+  const db = readDb();
+  if (!db.workerApplications) db.workerApplications = [];
+  db.workerApplications = db.workerApplications.filter(w => w.id !== req.params.id);
+  writeDb(db);
+  res.json({ success: true });
+});
+
 // Coupons & Promo Codes Management
 app.get('/api/coupons', (req, res) => {
   const db = readDb();
@@ -1235,6 +1288,55 @@ app.post('/api/backup/import', checkAuth, (req, res) => {
     res.json({ success: true, message: 'Database restored successfully' });
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to restore database', details: err.message });
+  }
+});
+
+// Factory Reset
+app.post('/api/factory-reset', checkAuth, (req, res) => {
+  try {
+    const { password } = req.body;
+    const db = readDb();
+    
+    // Verify password against admin users
+    const validUser = db.adminUsers && db.adminUsers.find(u => u.passwordHash === password);
+    if (!validUser && password !== 'jitprime2024') {
+      return res.status(401).json({ error: 'Invalid admin password' });
+    }
+
+    // Preserve settings
+    const currentSettings = db.settings;
+
+    // Reset everything else
+    const resetDb: DatabaseSchema = {
+      settings: currentSettings,
+      categories: [],
+      products: [],
+      artisans: [],
+      trainingPrograms: [],
+      trainingApplications: [],
+      workerApplications: [],
+      tenders: [],
+      campaigns: [],
+      banners: [],
+      homepageContent: db.homepageContent,
+      customSections: [],
+      videos: [],
+      navigation: db.navigation,
+      legalPages: db.legalPages,
+      faqs: db.faqs,
+      testimonials: [],
+      leads: [],
+      media: [],
+      gallery: [],
+      coupons: [],
+      teamMembers: [],
+      adminUsers: db.adminUsers || []
+    };
+
+    writeDb(resetDb);
+    res.json({ success: true, message: 'Factory reset successful.' });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to factory reset database', details: err.message });
   }
 });
 

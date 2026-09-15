@@ -21,7 +21,8 @@ import {
   CustomSection,
   WorkerApplication,
   BannerItem,
-  Coupon
+  Coupon,
+  TeamMember
 } from '../src/types.js';
 
 import {
@@ -73,6 +74,7 @@ export interface DatabaseSchema {
   media: MediaFile[];
   gallery: GalleryItem[];
   coupons: Coupon[];
+  teamMembers: TeamMember[];
   adminUsers: AdminUser[];
 }
 
@@ -97,50 +99,10 @@ function getInitialDb(): DatabaseSchema {
     workerApplications: [],
     tenders: defaultTenders,
     campaigns: [defaultCampaign],
-    banners: [
-      {
-        id: 'banner-1',
-        title: 'Durga Puja Festive Bulk Bookings 2026',
-        subtitle: 'Authentic Terracotta Jewellery & Bengali Folk Art',
-        image: 'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&w=1200&q=80',
-        ctaText: 'Request Bulk Quote',
-        ctaLink: '/bulk-orders',
-        countdownEnabled: true,
-        countdownDeadline: '2026-10-15T00:00:00.000Z',
-        active: true,
-        orderIndex: 1
-      }
-    ],
+    banners: [],
     homepageContent: defaultHomepageContent,
     customSections: [],
-    videos: [
-      {
-        id: 'vid-1',
-        title: 'Handmade Terracotta Jewellery Workshop & Artisan Crafting',
-        description: 'Watch our skilled women artisans in Nimta moulding, baking and detailing exquisite clay jewellery pieces.',
-        googleDriveUrl: 'https://drive.google.com/file/d/1demo-terracotta-jewellery/view',
-        embedUrl: '',
-        thumbnailUrl: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=80',
-        category: 'Work Video',
-        featured: true,
-        hidden: false,
-        orderIndex: 1,
-        createdAt: '2026-09-12T10:00:00.000Z'
-      },
-      {
-        id: 'vid-2',
-        title: 'Artisanal Bankura Clay Horse Moulding & Folk Decor Production',
-        description: 'Authentic clay handmade manufacturing in Bengal connecting heritage craft with wholesale and bulk buyers.',
-        googleDriveUrl: 'https://drive.google.com/file/d/1demo-bankura-clay-work/view',
-        embedUrl: '',
-        thumbnailUrl: 'https://images.unsplash.com/photo-1582562124811-c09040d0a901?auto=format&fit=crop&w=800&q=80',
-        category: 'Production Video',
-        featured: true,
-        hidden: false,
-        orderIndex: 2,
-        createdAt: '2026-09-12T10:00:00.000Z'
-      }
-    ],
+    videos: [],
     navigation: defaultNavigation,
     legalPages: defaultLegalPages,
     faqs: defaultFAQs,
@@ -148,6 +110,7 @@ function getInitialDb(): DatabaseSchema {
     leads: defaultLeads,
     media: [],
     gallery: defaultGallery,
+    teamMembers: [],
     adminUsers: [
       {
         id: 'admin-setup',

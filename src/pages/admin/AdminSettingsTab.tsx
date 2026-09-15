@@ -140,6 +140,12 @@ export const AdminSettingsTab: React.FC = () => {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [changingPassword, setChangingPassword] = useState(false);
 
+  // Factory Reset State
+  const [resetPassword, setResetPassword] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetSuccess, setResetSuccess] = useState(false);
+
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError(null);
@@ -166,6 +172,40 @@ export const AdminSettingsTab: React.FC = () => {
       setPasswordError(err.message || 'Failed to update password');
     } finally {
       setChangingPassword(false);
+    }
+  };
+
+  const handleFactoryReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError(null);
+    setResetSuccess(false);
+
+    if (!resetPassword) {
+      setResetError('Please enter admin password / অ্যাডমিন পাসওয়ার্ড দিন।');
+      return;
+    }
+
+    if (!window.confirm('WARNING: This will delete ALL products, categories, orders, videos, team members etc. Company settings will remain. Are you absolutely sure? / সতর্কীকরণ: এটি সমস্ত পণ্য, ভিডিও, অর্ডার ইত্যাদি মুছে ফেলবে। আপনি কি নিশ্চিত?')) {
+      return;
+    }
+
+    setIsResetting(true);
+    try {
+      const res = await api.factoryReset(resetPassword);
+      if (res.success) {
+        setResetSuccess(true);
+        setResetPassword('');
+        alert('Factory reset successful! All data cleared.');
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        setResetError(res.message);
+      }
+    } catch (err: any) {
+      setResetError(err.message || 'Factory reset failed');
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -683,6 +723,57 @@ export const AdminSettingsTab: React.FC = () => {
           </button>
         </form>
       </div>
+
+      {/* Factory Reset Card */}
+      <div className="bg-red-50 rounded-3xl p-6 sm:p-8 border border-red-200 shadow-xs space-y-4">
+        <div className="flex items-center gap-2">
+          <Trash2 className="w-5 h-5 text-red-600" />
+          <h3 className="text-base font-bold text-red-900 font-serif-heading">
+            Factory Reset &bull; ডেটা রিসেট করুন
+          </h3>
+        </div>
+        <p className="text-xs text-red-700 leading-relaxed max-w-2xl">
+          সতর্কীকরণ: এই বাটনে ক্লিক করলে ওয়েবসাইটের সমস্ত ডেটা (প্রোডাক্ট, ভিডিও, অর্ডার, কুপন ইত্যাদি) মুছে যাবে এবং নতুন ফ্রেশ ওয়েবসাইট তৈরি হবে। শুধুমাত্র কোম্পানি ডিটেইলস (Company Identity) অক্ষত থাকবে। এটি বাতিল করা যায় না।
+        </p>
+
+        {resetSuccess && (
+          <div className="p-3 bg-emerald-50 text-emerald-800 text-xs rounded-xl border border-emerald-200 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>ফ্যাক্টরি রিসেট সফল হয়েছে! পেজটি রিলোড হচ্ছে...</span>
+          </div>
+        )}
+
+        {resetError && (
+          <div className="p-3 bg-red-100 text-red-800 text-xs rounded-xl border border-red-300">
+            {resetError}
+          </div>
+        )}
+
+        <form onSubmit={handleFactoryReset} className="space-y-4 max-w-md pt-2">
+          <div>
+            <label className="block text-xs font-bold text-red-900 mb-1">
+              রিসেট করতে অ্যাডমিন পাসওয়ার্ড দিন (Admin Password) *
+            </label>
+            <input
+              type="password"
+              required
+              placeholder="অ্যাডমিন পাসওয়ার্ড"
+              value={resetPassword}
+              onChange={e => setResetPassword(e.target.value)}
+              className="w-full px-3.5 py-2 text-xs bg-white border border-red-300 rounded-xl focus:ring-2 focus:ring-red-500"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isResetting}
+            className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer"
+          >
+            {isResetting ? 'রিসেট হচ্ছে...' : 'Factory Reset (সব মুছে ফেলুন)'}
+          </button>
+        </form>
+      </div>
+
     </div>
   );
 };

@@ -121,11 +121,16 @@ export interface GovernmentTender {
   title: string;
   organization: string;
   issuingOrganization?: string;
+  department?: string;
+  tenderReferenceNumber?: string;
+  approximateValue?: string;
+  scopeOfWork?: string;
+  completionYear?: string;
   year: string;
   category: string;
   description: string;
   caseStudySnippet?: string;
-  status: 'Verified Project' | 'Active Capability' | 'Empanelled' | 'Completed' | 'Documentation Ready';
+  status: 'Verified Project' | 'Active Capability' | 'Empanelled' | 'Completed' | 'Documentation Ready' | string;
   documents?: { name: string; url: string }[];
   images?: string[];
   caseStudy?: string;
@@ -270,6 +275,7 @@ export interface SiteSettings {
   advancePaymentPolicyNote: string;
   shippingDisclaimer?: string;
   visitingCardTagline?: string;
+  teamSettings?: TeamSectionSettings;
   seo: {
     metaTitle: string;
     metaDescription: string;
@@ -467,6 +473,29 @@ export interface CouponValidationResult {
   discountAmount: number;
   finalTotal: number;
   message: string;
+}
+
+export interface TeamMember {
+  id: string;
+  name?: string;
+  role?: string; // post / designation (optional)
+  photo?: string;
+  bio?: string;
+  caption?: string;
+  orderIndex?: number;
+  hidden?: boolean;
+  aspectRatio?: 'square' | 'wide'; // Flipkart product (square) or YouTube thumbnail (wide)
+}
+
+export interface TeamSectionSettings {
+  enabled?: boolean;
+  sectionTitle?: string;
+  sectionSubtitle?: string;
+  displayLayout?: 'square' | 'wide'; // 'square' = Flipkart Product size (1:1), 'wide' = YouTube Thumbnail size (16:9)
+  groupPhotoEnabled?: boolean;
+  groupPhoto?: string;
+  groupPhotoTitle?: string;
+  groupPhotoDescription?: string;
 }
 
 

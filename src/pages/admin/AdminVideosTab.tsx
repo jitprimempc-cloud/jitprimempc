@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { VideoItem } from '../../types';
 import { api } from '../../services/api';
+import { DeleteConfirmModal } from '../../components/DeleteConfirmModal';
 
 const VIDEO_CATEGORIES = [
   'Our Work',
@@ -41,6 +42,8 @@ export const AdminVideosTab: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVideo, setEditingVideo] = useState<VideoItem | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Source mode: 'upload' or 'link'
   const [sourceMode, setSourceMode] = useState<'upload' | 'link'>('upload');
@@ -222,13 +225,22 @@ export const AdminVideosTab: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this video? / এই ভিডিওটি মুছে ফেলতে চান?')) return;
+  const handleDeleteClick = (v: VideoItem) => {
+    setDeleteTarget({ id: v.id, name: v.title });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await api.deleteVideo(id);
-      setVideos(prev => prev.filter(v => v.id !== id));
+      await api.deleteVideo(deleteTarget.id);
+      setVideos(prev => prev.filter(v => v.id !== deleteTarget.id));
+      setDeleteTarget(null);
     } catch (err) {
       console.error('Error deleting video:', err);
+      alert('ভিডিওটি মুছতে সমস্যা হয়েছে');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -485,7 +497,7 @@ export const AdminVideosTab: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDelete(vid.id)}
+                    onClick={() => handleDeleteClick(vid)}
                     className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg cursor-pointer"
                     title="Delete Video"
                   >
@@ -497,6 +509,17 @@ export const AdminVideosTab: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="ভিডিও মুছে ফেলা (Delete Video)"
+        itemName={deleteTarget?.name}
+        message="আপনি কি নিশ্চিত যে এই ভিডিওটি স্থায়ীভাবে মুছে ফেলতে চান?"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       {/* Add / Edit Video Modal */}
       {isModalOpen && (

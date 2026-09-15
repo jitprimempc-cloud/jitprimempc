@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { BulkEnquiryLead, LeadPriority, LeadStatus } from '../../types';
+import { DeleteConfirmModal } from '../../components/DeleteConfirmModal';
 
 export const AdminLeadsTab: React.FC = () => {
   const [leads, setLeads] = useState<BulkEnquiryLead[]>([]);
@@ -31,6 +32,8 @@ export const AdminLeadsTab: React.FC = () => {
 
   const [selectedLead, setSelectedLead] = useState<BulkEnquiryLead | null>(null);
   const [newNote, setNewNote] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadLeads = async () => {
     setLoading(true);
@@ -84,14 +87,23 @@ export const AdminLeadsTab: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this lead permanently?')) return;
+  const handleDeleteClick = (lead: BulkEnquiryLead) => {
+    setDeleteTarget({ id: lead.id, name: `${lead.name} (${lead.companyName || lead.productOrCategory})` });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await api.deleteLead(id);
-      setLeads(prev => prev.filter(l => l.id !== id));
-      if (selectedLead?.id === id) setSelectedLead(null);
+      await api.deleteLead(deleteTarget.id);
+      setLeads(prev => prev.filter(l => l.id !== deleteTarget.id));
+      if (selectedLead?.id === deleteTarget.id) setSelectedLead(null);
+      setDeleteTarget(null);
     } catch (err) {
       console.error('Delete failed:', err);
+      alert('লিড মুছতে সমস্যা হয়েছে');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -310,8 +322,8 @@ export const AdminLeadsTab: React.FC = () => {
                     </a>
                     <button
                       type="button"
-                      onClick={() => handleDelete(lead.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                      onClick={() => handleDeleteClick(lead)}
+                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
                       title="Delete Lead"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -323,6 +335,17 @@ export const AdminLeadsTab: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="লিড মুছে ফেলা (Delete Enquiry Lead)"
+        itemName={deleteTarget?.name}
+        message="আপনি কি নিশ্চিত যে এই পাইকারি অনুসন্ধানের লিডটি স্থায়ীভাবে মুছে ফেলতে চান?"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       {/* Detail Modal */}
       {selectedLead && (

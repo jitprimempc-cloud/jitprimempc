@@ -73,12 +73,24 @@ export const ArtisansPage: React.FC<ArtisansPageProps> = ({ onNavigate }) => {
               className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col group"
             >
               {/* Photo */}
-              <div className="relative aspect-4/3 overflow-hidden bg-slate-100">
-                <img
-                  src={artisan.photo}
-                  alt={artisan.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
+              <div className="relative aspect-4/3 overflow-hidden bg-slate-900 flex items-center justify-center">
+                {artisan.photo ? (
+                  <img
+                    src={artisan.photo}
+                    alt={artisan.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-linear-to-br from-[#0B1A30] via-slate-800 to-amber-950 flex flex-col items-center justify-center text-center p-4">
+                    <div className="w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-400/40 flex items-center justify-center text-2xl font-bold mb-2">
+                      {artisan.name ? artisan.name.charAt(0).toUpperCase() : 'A'}
+                    </div>
+                    <span className="text-xs font-semibold text-amber-200/80">{artisan.craft || 'Handicraft Artisan'}</span>
+                  </div>
+                )}
                 <div className="absolute top-3 left-3 bg-[#0B1A30]/90 text-amber-400 text-[10px] font-extrabold uppercase px-2.5 py-1 rounded shadow-xs">
                   {artisan.experienceYears}+ Years Experience
                 </div>
@@ -143,12 +155,23 @@ export const ArtisansPage: React.FC<ArtisansPageProps> = ({ onNavigate }) => {
               <X className="w-5 h-5" />
             </button>
 
-            <div className="aspect-16/9 bg-slate-900 relative">
-              <img
-                src={selectedArtisan.photo}
-                alt={selectedArtisan.name}
-                className="w-full h-full object-cover"
-              />
+            <div className="aspect-16/9 bg-slate-900 relative overflow-hidden flex items-center justify-center">
+              {selectedArtisan.photo ? (
+                <img
+                  src={selectedArtisan.photo}
+                  alt={selectedArtisan.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full bg-linear-to-br from-[#0B1A30] via-slate-800 to-amber-950 flex items-center justify-center">
+                  <div className="w-20 h-20 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-400/40 flex items-center justify-center text-3xl font-bold">
+                    {selectedArtisan.name ? selectedArtisan.name.charAt(0).toUpperCase() : 'A'}
+                  </div>
+                </div>
+              )}
               <div className="absolute inset-0 bg-linear-to-t from-slate-950 via-transparent to-transparent"></div>
               <div className="absolute bottom-3 left-4 text-white">
                 <span className="text-amber-400 text-xs font-bold uppercase">{selectedArtisan.craft}</span>

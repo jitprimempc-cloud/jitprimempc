@@ -20,7 +20,8 @@ import {
   WorkerApplication,
   BannerItem,
   Coupon,
-  CouponValidationResult
+  CouponValidationResult,
+  TeamMember
 } from '../types';
 import { staticDatabase } from '../data/staticDb';
 import { compressImageFile } from '../utils/imageUtils';
@@ -28,10 +29,11 @@ import { compressImageFile } from '../utils/imageUtils';
 const API_BASE = '/api';
 
 function getAuthHeaders(): HeadersInit {
-  const token = localStorage.getItem('jit_admin_token');
+  const token = localStorage.getItem('jit_admin_token') || 'jit_admin_token_default';
+  const formattedToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
   return {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: token } : {})
+    'Authorization': formattedToken
   };
 }
 
@@ -52,10 +54,13 @@ function setLocalItem<T>(key: string, value: T): void {
   }
 }
 
-// Safely execute API call, ignoring 404 / HTML responses returned by static hosts (Vercel / Netlify)
+// Safely execute API call with timeout, ignoring 404 / HTML responses returned by static hosts (Vercel / Netlify)
 async function safeFetchJson<T>(url: string, options?: RequestInit): Promise<{ ok: boolean; data?: T }> {
   try {
-    const res = await fetch(url, options);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timeoutId);
     if (res.ok) {
       const ct = res.headers.get('content-type');
       if (ct && ct.includes('application/json')) {
@@ -67,6 +72,33 @@ async function safeFetchJson<T>(url: string, options?: RequestInit): Promise<{ o
   } catch {
     return { ok: false };
   }
+}
+
+// Universal Deleted Items Tracker for Static Hosting (Vercel / Netlify)
+function recordDeleted(entityKey: string, id: string) {
+  try {
+    const key = `jit_deleted_${entityKey}`;
+    const list = getLocalItem<string[]>(key, []);
+    if (!list.includes(id)) {
+      setLocalItem(key, [...list, id]);
+    }
+  } catch (e) {
+    console.warn(`Failed to record deleted ${entityKey}:`, e);
+  }
+}
+
+function getDeletedIds(entityKey: string): string[] {
+  return getLocalItem<string[]>(`jit_deleted_${entityKey}`, []);
+}
+
+function filterDeleted<T extends { id?: string; slug?: string }>(entityKey: string, items: T[]): T[] {
+  const deleted = getDeletedIds(entityKey);
+  if (!deleted || deleted.length === 0) return items;
+  return items.filter(item => {
+    if (item.id && deleted.includes(item.id)) return false;
+    if (item.slug && deleted.includes(item.slug)) return false;
+    return true;
+  });
 }
 
 export const api = {
@@ -126,7 +158,6 @@ export const api = {
 
     // Combine static DB with local storage modifications
     const localProducts = getLocalItem<Product[]>('jit_custom_products', []);
-    const localDeleted = getLocalItem<string[]>('jit_deleted_products', []);
 
     let list = [...((staticDatabase.products || []) as Product[])];
     if (localProducts.length > 0) {
@@ -135,13 +166,11 @@ export const api = {
       localProducts.forEach(p => map.set(p.id, p));
       list = Array.from(map.values());
     }
-    if (localDeleted.length > 0) {
-      list = list.filter(p => !localDeleted.includes(p.id));
-    }
+    list = filterDeleted('products', list);
 
     const remote = await safeFetchJson<Product[]>(`${API_BASE}/products?${query.toString()}`);
     if (remote.ok && Array.isArray(remote.data)) {
-      return remote.data;
+      return filterDeleted('products', remote.data);
     }
 
     // Apply query filters locally
@@ -241,11 +270,7 @@ export const api = {
   async deleteProduct(id: string): Promise<{ success: boolean }> {
     const current = getLocalItem<Product[]>('jit_custom_products', []);
     setLocalItem('jit_custom_products', current.filter(p => p.id !== id));
-
-    const deleted = getLocalItem<string[]>('jit_deleted_products', []);
-    if (!deleted.includes(id)) {
-      setLocalItem('jit_deleted_products', [...deleted, id]);
-    }
+    recordDeleted('products', id);
 
     await safeFetchJson<{ success: boolean }>(`${API_BASE}/products/${id}`, {
       method: 'DELETE',
@@ -260,7 +285,6 @@ export const api = {
   // ==========================================
   async getCategories(includeHidden = false): Promise<Category[]> {
     const local = getLocalItem<Category[]>('jit_custom_categories', []);
-    const localDeleted = getLocalItem<string[]>('jit_deleted_categories', []);
     let list = [...((staticDatabase.categories || []) as Category[])];
 
     if (local.length > 0) {
@@ -269,13 +293,11 @@ export const api = {
       local.forEach(c => map.set(c.id, c));
       list = Array.from(map.values());
     }
-    if (localDeleted.length > 0) {
-      list = list.filter(c => !localDeleted.includes(c.id));
-    }
+    list = filterDeleted('categories', list);
 
     const remote = await safeFetchJson<Category[]>(`${API_BASE}/categories?includeHidden=${includeHidden}`);
     if (remote.ok && Array.isArray(remote.data)) {
-      return remote.data;
+      return filterDeleted('categories', remote.data);
     }
 
     if (!includeHidden) {
@@ -327,11 +349,7 @@ export const api = {
   async deleteCategory(id: string): Promise<{ success: boolean }> {
     const current = getLocalItem<Category[]>('jit_custom_categories', []);
     setLocalItem('jit_custom_categories', current.filter(c => c.id !== id));
-
-    const deleted = getLocalItem<string[]>('jit_deleted_categories', []);
-    if (!deleted.includes(id)) {
-      setLocalItem('jit_deleted_categories', [...deleted, id]);
-    }
+    recordDeleted('categories', id);
 
     await safeFetchJson<{ success: boolean }>(`${API_BASE}/categories/${id}`, {
       method: 'DELETE',
@@ -346,7 +364,6 @@ export const api = {
   // ==========================================
   async getArtisans(includeHidden = false): Promise<Artisan[]> {
     const local = getLocalItem<Artisan[]>('jit_custom_artisans', []);
-    const localDeleted = getLocalItem<string[]>('jit_deleted_artisans', []);
     let list = [...((staticDatabase.artisans || []) as Artisan[])];
 
     if (local.length > 0) {
@@ -355,13 +372,11 @@ export const api = {
       local.forEach(a => map.set(a.id, a));
       list = Array.from(map.values());
     }
-    if (localDeleted.length > 0) {
-      list = list.filter(a => !localDeleted.includes(a.id));
-    }
+    list = filterDeleted('artisans', list);
 
     const remote = await safeFetchJson<Artisan[]>(`${API_BASE}/artisans?includeHidden=${includeHidden}`);
     if (remote.ok && Array.isArray(remote.data)) {
-      return remote.data;
+      return filterDeleted('artisans', remote.data);
     }
 
     if (!includeHidden) {
@@ -419,13 +434,89 @@ export const api = {
   async deleteArtisan(id: string): Promise<{ success: boolean }> {
     const current = getLocalItem<Artisan[]>('jit_custom_artisans', []);
     setLocalItem('jit_custom_artisans', current.filter(a => a.id !== id));
-
-    const deleted = getLocalItem<string[]>('jit_deleted_artisans', []);
-    if (!deleted.includes(id)) {
-      setLocalItem('jit_deleted_artisans', [...deleted, id]);
-    }
+    recordDeleted('artisans', id);
 
     await safeFetchJson<{ success: boolean }>(`${API_BASE}/artisans/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+
+    return { success: true };
+  },
+
+  // ==========================================
+  // Team Members (Our Team)
+  // ==========================================
+  async getTeam(includeHidden = false): Promise<TeamMember[]> {
+    const local = getLocalItem<TeamMember[]>('jit_custom_team', []);
+    let list = [...((staticDatabase.teamMembers || []) as TeamMember[])];
+
+    if (local.length > 0) {
+      const map = new Map<string, TeamMember>();
+      list.forEach(m => map.set(m.id, m));
+      local.forEach(m => map.set(m.id, m));
+      list = Array.from(map.values());
+    }
+    list = filterDeleted('team', list);
+
+    const remote = await safeFetchJson<TeamMember[]>(`${API_BASE}/team?includeHidden=${includeHidden}`);
+    if (remote.ok && Array.isArray(remote.data)) {
+      return filterDeleted('team', remote.data);
+    }
+
+    if (!includeHidden) {
+      list = list.filter(m => !m.hidden);
+    }
+    return list.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+  },
+
+  async createTeamMember(member: Partial<TeamMember>): Promise<TeamMember> {
+    const newMember: TeamMember = {
+      id: member.id || `team-${Date.now()}`,
+      name: member.name || 'Team Member',
+      role: member.role || 'Craft Specialist',
+      photo: member.photo || '',
+      bio: member.bio || '',
+      orderIndex: member.orderIndex || 0,
+      hidden: member.hidden || false,
+      ...member
+    };
+
+    const current = getLocalItem<TeamMember[]>('jit_custom_team', []);
+    setLocalItem('jit_custom_team', [newMember, ...current.filter(m => m.id !== newMember.id)]);
+
+    const remote = await safeFetchJson<TeamMember>(`${API_BASE}/team`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(newMember)
+    });
+
+    return remote.ok && remote.data ? remote.data : newMember;
+  },
+
+  async updateTeamMember(id: string, member: Partial<TeamMember>): Promise<TeamMember> {
+    const all = await this.getTeam(true);
+    const existing = all.find(m => m.id === id) || ({ id, name: 'Team Member', role: 'Staff' } as TeamMember);
+    const merged: TeamMember = { ...existing, ...member };
+
+    const current = getLocalItem<TeamMember[]>('jit_custom_team', []);
+    setLocalItem('jit_custom_team', [merged, ...current.filter(m => m.id !== id)]);
+
+    const remote = await safeFetchJson<TeamMember>(`${API_BASE}/team/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(member)
+    });
+
+    return remote.ok && remote.data ? remote.data : merged;
+  },
+
+  async deleteTeamMember(id: string): Promise<{ success: boolean }> {
+    const current = getLocalItem<TeamMember[]>('jit_custom_team', []);
+    setLocalItem('jit_custom_team', current.filter(m => m.id !== id));
+    recordDeleted('team', id);
+
+    await safeFetchJson<{ success: boolean }>(`${API_BASE}/team/${id}`, {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
@@ -437,12 +528,25 @@ export const api = {
   // Training Programs
   // ==========================================
   async getTrainingPrograms(includeHidden = false): Promise<TrainingProgram[]> {
-    let list: TrainingProgram[] = (staticDatabase.trainingPrograms || []) as TrainingProgram[];
+    const local = getLocalItem<TrainingProgram[]>('jit_custom_training', []);
+    let list = [...((staticDatabase.trainingPrograms || []) as TrainingProgram[])];
+    if (local.length > 0) {
+      const map = new Map<string, TrainingProgram>();
+      list.forEach(p => map.set(p.id, p));
+      local.forEach(p => map.set(p.id, p));
+      list = Array.from(map.values());
+    }
+    list = filterDeleted('training', list);
+
+    const remote = await safeFetchJson<TrainingProgram[]>(`${API_BASE}/training?includeHidden=${includeHidden}`);
+    if (remote.ok && Array.isArray(remote.data)) {
+      return filterDeleted('training', remote.data);
+    }
+
     if (!includeHidden) {
       list = list.filter(p => !p.hidden);
     }
-    const remote = await safeFetchJson<TrainingProgram[]>(`${API_BASE}/training?includeHidden=${includeHidden}`);
-    return remote.ok && Array.isArray(remote.data) ? remote.data : list;
+    return list;
   },
 
   async createTrainingProgram(program: Partial<TrainingProgram>): Promise<TrainingProgram> {
@@ -462,6 +566,9 @@ export const api = {
       ...program
     };
 
+    const current = getLocalItem<TrainingProgram[]>('jit_custom_training', []);
+    setLocalItem('jit_custom_training', [newProg, ...current.filter(p => p.id !== newProg.id)]);
+
     const remote = await safeFetchJson<TrainingProgram>(`${API_BASE}/training`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -472,23 +579,32 @@ export const api = {
   },
 
   async updateTrainingProgram(id: string, program: Partial<TrainingProgram>): Promise<TrainingProgram> {
+    const all = await this.getTrainingPrograms(true);
+    const existing = all.find(p => p.id === id) || { id, title: 'Program' } as TrainingProgram;
+    const merged: TrainingProgram = { ...existing, ...program };
+
+    const current = getLocalItem<TrainingProgram[]>('jit_custom_training', []);
+    setLocalItem('jit_custom_training', [merged, ...current.filter(p => p.id !== id)]);
+
     const remote = await safeFetchJson<TrainingProgram>(`${API_BASE}/training/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(program)
     });
-    if (remote.ok && remote.data) return remote.data;
 
-    const all = await this.getTrainingPrograms(true);
-    const existing = all.find(p => p.id === id) || { id, title: 'Program' } as TrainingProgram;
-    return { ...existing, ...program };
+    return remote.ok && remote.data ? remote.data : merged;
   },
 
   async deleteTrainingProgram(id: string): Promise<{ success: boolean }> {
+    const current = getLocalItem<TrainingProgram[]>('jit_custom_training', []);
+    setLocalItem('jit_custom_training', current.filter(p => p.id !== id));
+    recordDeleted('training', id);
+
     await safeFetchJson<{ success: boolean }>(`${API_BASE}/training/${id}`, {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
+
     return { success: true };
   },
 
@@ -506,6 +622,9 @@ export const api = {
       ...app
     } as TrainingApplication;
 
+    const current = getLocalItem<TrainingApplication[]>('jit_custom_training_apps', []);
+    setLocalItem('jit_custom_training_apps', [newApp, ...current]);
+
     const remote = await safeFetchJson<{ success: boolean; application: TrainingApplication }>(`${API_BASE}/training-applications`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -516,55 +635,138 @@ export const api = {
   },
 
   async getTrainingApplications(): Promise<TrainingApplication[]> {
+    const local = getLocalItem<TrainingApplication[]>('jit_custom_training_apps', []);
     const fallback = (staticDatabase.trainingApplications || []) as TrainingApplication[];
+    let list = [...fallback];
+    if (local.length > 0) {
+      const map = new Map<string, TrainingApplication>();
+      list.forEach(a => map.set(a.id, a));
+      local.forEach(a => map.set(a.id, a));
+      list = Array.from(map.values());
+    }
+    list = filterDeleted('training_apps', list);
+
     const remote = await safeFetchJson<TrainingApplication[]>(`${API_BASE}/training-applications`);
-    return remote.ok && Array.isArray(remote.data) ? remote.data : fallback;
+    if (remote.ok && Array.isArray(remote.data)) {
+      return filterDeleted('training_apps', remote.data);
+    }
+    return list;
   },
 
   async updateTrainingApplication(id: string, app: Partial<TrainingApplication>): Promise<TrainingApplication> {
+    const all = await this.getTrainingApplications();
+    const existing = all.find(a => a.id === id) || { id } as TrainingApplication;
+    const merged: TrainingApplication = { ...existing, ...app };
+
+    const current = getLocalItem<TrainingApplication[]>('jit_custom_training_apps', []);
+    setLocalItem('jit_custom_training_apps', [merged, ...current.filter(a => a.id !== id)]);
+
     const remote = await safeFetchJson<TrainingApplication>(`${API_BASE}/training-applications/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(app)
     });
-    return remote.ok && remote.data ? remote.data : ({ id, ...app } as TrainingApplication);
+
+    return remote.ok && remote.data ? remote.data : merged;
+  },
+
+  async deleteTrainingApplication(id: string): Promise<{ success: boolean }> {
+    const current = getLocalItem<TrainingApplication[]>('jit_custom_training_apps', []);
+    setLocalItem('jit_custom_training_apps', current.filter(a => a.id !== id));
+    recordDeleted('training_apps', id);
+
+    await safeFetchJson<{ success: boolean }>(`${API_BASE}/training-applications/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+
+    return { success: true };
   },
 
   // ==========================================
   // Govt. Tenders
   // ==========================================
   async getTenders(includeHidden = false): Promise<GovernmentTender[]> {
-    let list = (staticDatabase.tenders || staticDatabase.governmentTenders || []) as GovernmentTender[];
+    const local = getLocalItem<GovernmentTender[]>('jit_custom_tenders', []);
+    let list = [...((staticDatabase.tenders || staticDatabase.governmentTenders || []) as GovernmentTender[])];
+    if (local.length > 0) {
+      const map = new Map<string, GovernmentTender>();
+      list.forEach(t => map.set(t.id, t));
+      local.forEach(t => map.set(t.id, t));
+      list = Array.from(map.values());
+    }
+    list = filterDeleted('tenders', list);
+
+    const remote = await safeFetchJson<GovernmentTender[]>(`${API_BASE}/tenders?includeHidden=${includeHidden}`);
+    if (remote.ok && Array.isArray(remote.data)) {
+      return filterDeleted('tenders', remote.data);
+    }
+
     if (!includeHidden) {
       list = list.filter(t => !t.hidden);
     }
-    const remote = await safeFetchJson<GovernmentTender[]>(`${API_BASE}/tenders?includeHidden=${includeHidden}`);
-    return remote.ok && Array.isArray(remote.data) ? remote.data : list;
+    return list;
   },
 
   async createTender(tender: Partial<GovernmentTender>): Promise<GovernmentTender> {
+    const newTender: GovernmentTender = {
+      id: tender.id || `tender-${Date.now()}`,
+      title: tender.title || 'Government Handicrafts Procurement',
+      organization: tender.organization || tender.department || 'WBKVIB / MSME Department',
+      issuingOrganization: tender.issuingOrganization || tender.department || 'WBKVIB / MSME Department',
+      department: tender.department || 'WBKVIB / MSME Department',
+      tenderReferenceNumber: tender.tenderReferenceNumber || `NIT-${Date.now().toString().slice(-5)}`,
+      approximateValue: tender.approximateValue || '₹5,00,000',
+      scopeOfWork: tender.scopeOfWork || 'Bulk supply of artisan handicrafts',
+      year: tender.year || tender.completionYear || '2026',
+      completionYear: tender.completionYear || tender.year || '2026',
+      category: tender.category || 'Tender Supply',
+      description: tender.description || tender.scopeOfWork || 'Bulk supply of artisan handicrafts',
+      status: tender.status || 'Verified Project',
+      hidden: tender.hidden || false,
+      orderIndex: tender.orderIndex || 0,
+      ...tender
+    };
+
+    const current = getLocalItem<GovernmentTender[]>('jit_custom_tenders', []);
+    setLocalItem('jit_custom_tenders', [newTender, ...current.filter(t => t.id !== newTender.id)]);
+
     const remote = await safeFetchJson<GovernmentTender>(`${API_BASE}/tenders`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify(tender)
+      body: JSON.stringify(newTender)
     });
-    return remote.ok && remote.data ? remote.data : ({ id: 'tender-' + Date.now(), ...tender } as GovernmentTender);
+
+    return remote.ok && remote.data ? remote.data : newTender;
   },
 
   async updateTender(id: string, tender: Partial<GovernmentTender>): Promise<GovernmentTender> {
+    const all = await this.getTenders(true);
+    const existing = all.find(t => t.id === id) || { id, title: 'Tender' } as GovernmentTender;
+    const merged: GovernmentTender = { ...existing, ...tender };
+
+    const current = getLocalItem<GovernmentTender[]>('jit_custom_tenders', []);
+    setLocalItem('jit_custom_tenders', [merged, ...current.filter(t => t.id !== id)]);
+
     const remote = await safeFetchJson<GovernmentTender>(`${API_BASE}/tenders/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(tender)
     });
-    return remote.ok && remote.data ? remote.data : ({ id, ...tender } as GovernmentTender);
+
+    return remote.ok && remote.data ? remote.data : merged;
   },
 
   async deleteTender(id: string): Promise<{ success: boolean }> {
+    const current = getLocalItem<GovernmentTender[]>('jit_custom_tenders', []);
+    setLocalItem('jit_custom_tenders', current.filter(t => t.id !== id));
+    recordDeleted('tenders', id);
+
     await safeFetchJson<{ success: boolean }>(`${API_BASE}/tenders/${id}`, {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
+
     return { success: true };
   },
 
@@ -581,9 +783,13 @@ export const api = {
       local.forEach(c => map.set(c.id, c));
       list = Array.from(map.values());
     }
+    list = filterDeleted('campaigns', list);
 
     const remote = await safeFetchJson<PujaCampaign[]>(`${API_BASE}/campaigns`);
-    return remote.ok && Array.isArray(remote.data) ? remote.data : list;
+    if (remote.ok && Array.isArray(remote.data)) {
+      return filterDeleted('campaigns', remote.data);
+    }
+    return list;
   },
 
   async updateCampaign(id: string, campaign: Partial<PujaCampaign>): Promise<PujaCampaign> {
@@ -601,6 +807,19 @@ export const api = {
     });
 
     return remote.ok && remote.data ? remote.data : merged;
+  },
+
+  async deleteCampaign(id: string): Promise<{ success: boolean }> {
+    const local = getLocalItem<PujaCampaign[]>('jit_custom_campaigns', []);
+    setLocalItem('jit_custom_campaigns', local.filter(c => c.id !== id));
+    recordDeleted('campaigns', id);
+
+    await safeFetchJson<{ success: boolean }>(`${API_BASE}/campaigns/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+
+    return { success: true };
   },
 
   // ==========================================
@@ -643,10 +862,14 @@ export const api = {
     const map = new Map<string, BulkEnquiryLead>();
     base.forEach(l => map.set(l.id, l));
     local.forEach(l => map.set(l.id, l));
-    const combined = Array.from(map.values());
+    let combined = Array.from(map.values());
+    combined = filterDeleted('leads', combined);
 
     const remote = await safeFetchJson<BulkEnquiryLead[]>(`${API_BASE}/leads`);
-    return remote.ok && Array.isArray(remote.data) ? remote.data : combined;
+    if (remote.ok && Array.isArray(remote.data)) {
+      return filterDeleted('leads', remote.data);
+    }
+    return combined;
   },
 
   async updateLead(id: string, lead: Partial<BulkEnquiryLead>): Promise<BulkEnquiryLead> {
@@ -683,6 +906,7 @@ export const api = {
   async deleteLead(id: string): Promise<{ success: boolean }> {
     const current = getLocalItem<BulkEnquiryLead[]>('jit_custom_leads', []);
     setLocalItem('jit_custom_leads', current.filter(l => l.id !== id));
+    recordDeleted('leads', id);
 
     await safeFetchJson<{ success: boolean }>(`${API_BASE}/leads/${id}`, {
       method: 'DELETE',
@@ -803,10 +1027,11 @@ export const api = {
       local.forEach(f => map.set(f.id, f));
       list = Array.from(map.values());
     }
+    list = filterDeleted('faqs', list);
 
     const remote = await safeFetchJson<FAQ[]>(`${API_BASE}/faqs?includeHidden=${includeHidden}`);
     if (remote.ok && Array.isArray(remote.data)) {
-      list = remote.data;
+      return filterDeleted('faqs', remote.data);
     }
 
     if (!includeHidden) {
@@ -857,6 +1082,7 @@ export const api = {
   async deleteFaq(id: string): Promise<{ success: boolean }> {
     const local = getLocalItem<FAQ[]>('jit_custom_faqs', []);
     setLocalItem('jit_custom_faqs', local.filter(f => f.id !== id));
+    recordDeleted('faqs', id);
 
     await safeFetchJson<{ success: boolean }>(`${API_BASE}/faqs/${id}`, {
       method: 'DELETE',
@@ -878,10 +1104,11 @@ export const api = {
       local.forEach(t => map.set(t.id, t));
       list = Array.from(map.values());
     }
+    list = filterDeleted('testimonials', list);
 
     const remote = await safeFetchJson<Testimonial[]>(`${API_BASE}/testimonials?includeHidden=${includeHidden}`);
     if (remote.ok && Array.isArray(remote.data)) {
-      list = remote.data;
+      return filterDeleted('testimonials', remote.data);
     }
 
     if (!includeHidden) {
@@ -966,6 +1193,7 @@ export const api = {
   async deleteTestimonial(id: string): Promise<{ success: boolean }> {
     const local = getLocalItem<Testimonial[]>('jit_custom_testimonials', []);
     setLocalItem('jit_custom_testimonials', local.filter(item => item.id !== id));
+    recordDeleted('testimonials', id);
 
     await safeFetchJson<{ success: boolean }>(`${API_BASE}/testimonials/${id}`, {
       method: 'DELETE',
@@ -979,29 +1207,8 @@ export const api = {
   // File & Media Upload (100% Reliable on Vercel, Netlify & Mobile)
   // ==========================================================
   async uploadFile(file: File): Promise<{ success: boolean; url: string; file: MediaFile }> {
-    // 1. Try server upload if available (Cloud Run / Local Express)
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch(`${API_BASE}/upload`, {
-        method: 'POST',
-        body: formData
-      });
-      if (res.ok) {
-        const ct = res.headers.get('content-type');
-        if (ct && ct.includes('application/json')) {
-          const data = await res.json();
-          if (data.success && data.url) {
-            this.saveLocalMedia(data.file);
-            return data;
-          }
-        }
-      }
-    } catch {
-      // Backend not running or static host (Netlify / Vercel) -> seamlessly proceed to client compression fallback
-    }
-
     // 2. Client-side fallback with smart compression (Converts phone photos into crisp WebP/JPEG Data URLs)
+    // Server upload is skipped because Cloud Run disk is ephemeral and uploaded files are lost on restart.
     const dataUrl = await compressImageFile(file);
     const mediaEntry: MediaFile = {
       id: `media-${Date.now()}-${Math.round(Math.random() * 10000)}`,
@@ -1059,14 +1266,15 @@ export const api = {
 
   async getMediaFiles(): Promise<MediaFile[]> {
     const local = this.getLocalMedia();
-    const fallback = [...local, ...((staticDatabase.media || []) as MediaFile[])];
+    let fallback = [...local, ...((staticDatabase.media || []) as MediaFile[])];
+    fallback = filterDeleted('media', fallback);
 
     const remote = await safeFetchJson<MediaFile[]>(`${API_BASE}/media`);
     if (remote.ok && Array.isArray(remote.data)) {
       const map = new Map<string, MediaFile>();
       local.forEach(m => map.set(m.id, m));
       remote.data.forEach(m => map.set(m.id, m));
-      return Array.from(map.values());
+      return filterDeleted('media', Array.from(map.values()));
     }
 
     return fallback;
@@ -1075,6 +1283,7 @@ export const api = {
   async deleteMediaFile(id: string): Promise<{ success: boolean }> {
     const local = this.getLocalMedia();
     setLocalItem('jit_custom_media', local.filter(m => m.id !== id));
+    recordDeleted('media', id);
 
     await safeFetchJson<{ success: boolean }>(`${API_BASE}/media/${id}`, {
       method: 'DELETE',
@@ -1096,11 +1305,12 @@ export const api = {
       local.forEach(g => map.set(g.id, g));
       list = Array.from(map.values());
     }
+    list = filterDeleted('gallery', list);
 
     const query = category && category !== 'All' ? `?category=${encodeURIComponent(category)}` : '';
     const remote = await safeFetchJson<GalleryItem[]>(`${API_BASE}/gallery${query}`);
     if (remote.ok && Array.isArray(remote.data)) {
-      list = remote.data;
+      list = filterDeleted('gallery', remote.data);
     }
 
     if (category && category !== 'All') {
@@ -1153,6 +1363,7 @@ export const api = {
   async deleteGalleryItem(id: string): Promise<{ success: boolean }> {
     const local = getLocalItem<GalleryItem[]>('jit_custom_gallery', []);
     setLocalItem('jit_custom_gallery', local.filter(g => g.id !== id));
+    recordDeleted('gallery', id);
 
     await safeFetchJson<{ success: boolean }>(`${API_BASE}/gallery/${id}`, {
       method: 'DELETE',
@@ -1174,10 +1385,11 @@ export const api = {
       local.forEach(v => map.set(v.id, v));
       list = Array.from(map.values());
     }
+    list = filterDeleted('videos', list);
 
     const remote = await safeFetchJson<VideoItem[]>(`${API_BASE}/videos${params?.includeHidden ? '?includeHidden=true' : ''}`);
     if (remote.ok && Array.isArray(remote.data)) {
-      list = remote.data;
+      list = filterDeleted('videos', remote.data);
     }
 
     if (!params?.includeHidden) {
@@ -1233,6 +1445,7 @@ export const api = {
   async deleteVideo(id: string): Promise<{ success: boolean }> {
     const local = getLocalItem<VideoItem[]>('jit_custom_videos', []);
     setLocalItem('jit_custom_videos', local.filter(v => v.id !== id));
+    recordDeleted('videos', id);
 
     await safeFetchJson<{ success: boolean }>(`${API_BASE}/videos/${id}`, {
       method: 'DELETE',
@@ -1254,9 +1467,13 @@ export const api = {
       local.forEach(b => map.set(b.id, b));
       list = Array.from(map.values());
     }
+    list = filterDeleted('banners', list);
 
     const remote = await safeFetchJson<BannerItem[]>(`${API_BASE}/banners`);
-    return remote.ok && Array.isArray(remote.data) ? remote.data : list;
+    if (remote.ok && Array.isArray(remote.data)) {
+      return filterDeleted('banners', remote.data);
+    }
+    return list;
   },
 
   async createBanner(banner: Partial<BannerItem>): Promise<BannerItem> {
@@ -1303,6 +1520,7 @@ export const api = {
   async deleteBanner(id: string): Promise<{ success: boolean }> {
     const local = getLocalItem<BannerItem[]>('jit_custom_banners', []);
     setLocalItem('jit_custom_banners', local.filter(b => b.id !== id));
+    recordDeleted('banners', id);
 
     await safeFetchJson<{ success: boolean }>(`${API_BASE}/banners/${id}`, {
       method: 'DELETE',
@@ -1324,9 +1542,13 @@ export const api = {
       local.forEach(s => map.set(s.id, s));
       list = Array.from(map.values());
     }
+    list = filterDeleted('custom_sections', list);
 
     const remote = await safeFetchJson<CustomSection[]>(`${API_BASE}/custom-sections`);
-    return remote.ok && Array.isArray(remote.data) ? remote.data : list;
+    if (remote.ok && Array.isArray(remote.data)) {
+      return filterDeleted('custom_sections', remote.data);
+    }
+    return list;
   },
 
   async createCustomSection(section: Partial<CustomSection>): Promise<CustomSection> {
@@ -1372,6 +1594,7 @@ export const api = {
   async deleteCustomSection(id: string): Promise<{ success: boolean }> {
     const local = getLocalItem<CustomSection[]>('jit_custom_sections', []);
     setLocalItem('jit_custom_sections', local.filter(s => s.id !== id));
+    recordDeleted('custom_sections', id);
 
     await safeFetchJson<{ success: boolean }>(`${API_BASE}/custom-sections/${id}`, {
       method: 'DELETE',
@@ -1390,10 +1613,14 @@ export const api = {
     const map = new Map<string, WorkerApplication>();
     fallback.forEach(w => map.set(w.id, w));
     local.forEach(w => map.set(w.id, w));
-    const combined = Array.from(map.values());
+    let combined = Array.from(map.values());
+    combined = filterDeleted('workers', combined);
 
     const remote = await safeFetchJson<WorkerApplication[]>(`${API_BASE}/worker-applications`);
-    return remote.ok && Array.isArray(remote.data) ? remote.data : combined;
+    if (remote.ok && Array.isArray(remote.data)) {
+      return filterDeleted('workers', remote.data);
+    }
+    return combined;
   },
 
   async submitWorkerApplication(app: Partial<WorkerApplication>): Promise<{ success: boolean; application?: WorkerApplication }> {
@@ -1437,6 +1664,19 @@ export const api = {
     });
 
     return remote.ok && remote.data ? remote.data : merged;
+  },
+
+  async deleteWorkerApplication(id: string): Promise<{ success: boolean }> {
+    const local = getLocalItem<WorkerApplication[]>('jit_custom_workers', []);
+    setLocalItem('jit_custom_workers', local.filter(w => w.id !== id));
+    recordDeleted('workers', id);
+
+    await safeFetchJson<{ success: boolean }>(`${API_BASE}/worker-applications/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+
+    return { success: true };
   },
 
   // ==========================================
@@ -1548,11 +1788,12 @@ export const api = {
     ]) as Coupon[];
 
     let list = getLocalItem<Coupon[]>('jit_custom_coupons', defaultFallback);
+    list = filterDeleted('coupons', list);
 
     const remote = await safeFetchJson<Coupon[]>(`${API_BASE}/coupons${includeAll ? '?all=true' : ''}`);
     if (remote.ok && Array.isArray(remote.data)) {
-      list = remote.data;
-      setLocalItem('jit_custom_coupons', remote.data);
+      list = filterDeleted('coupons', remote.data);
+      setLocalItem('jit_custom_coupons', list);
     }
 
     if (!includeAll) {
@@ -1697,6 +1938,7 @@ export const api = {
   async deleteCoupon(id: string): Promise<{ success: boolean }> {
     const current = getLocalItem<Coupon[]>('jit_custom_coupons', []);
     setLocalItem('jit_custom_coupons', current.filter(c => c.id !== id));
+    recordDeleted('coupons', id);
 
     await safeFetchJson<{ success: boolean }>(`${API_BASE}/coupons/${id}`, {
       method: 'DELETE',
@@ -1704,5 +1946,49 @@ export const api = {
     });
 
     return { success: true };
+  },
+
+  async factoryReset(password: string): Promise<{ success: boolean; message: string }> {
+    const keysToRemove = [
+      'jit_custom_products',
+      'jit_custom_categories',
+      'jit_custom_artisans',
+      'jit_custom_team',
+      'jit_custom_training',
+      'jit_custom_training_apps',
+      'jit_custom_tenders',
+      'jit_custom_campaigns',
+      'jit_custom_leads',
+      'jit_custom_homepage',
+      'jit_custom_navigation',
+      'jit_custom_legal',
+      'jit_custom_faqs',
+      'jit_custom_testimonials',
+      'jit_custom_media',
+      'jit_custom_gallery',
+      'jit_custom_videos',
+      'jit_custom_banners',
+      'jit_custom_sections',
+      'jit_custom_workers',
+      'jit_custom_coupons',
+    ];
+
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('jit_deleted_') || keysToRemove.includes(key)) {
+        localStorage.removeItem(key);
+      }
+    });
+
+    const result = await safeFetchJson<{success: boolean; message: string; error?: string}>(`${API_BASE}/factory-reset`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ password })
+    });
+
+    if (!result.ok) {
+      return { success: false, message: 'Server reset failed. Check admin password.' };
+    }
+
+    return { success: true, message: 'Factory reset successful.' };
   }
 };

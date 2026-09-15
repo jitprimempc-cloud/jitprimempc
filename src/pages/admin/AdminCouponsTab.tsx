@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { Coupon, Category } from '../../types';
+import { DeleteConfirmModal } from '../../components/DeleteConfirmModal';
 
 export const AdminCouponsTab: React.FC = () => {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -27,6 +28,8 @@ export const AdminCouponsTab: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Add / Edit Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -139,15 +142,23 @@ export const AdminCouponsTab: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string, code: string) => {
-    if (!window.confirm(`Are you sure you want to delete coupon "${code}"?`)) return;
+  const handleDeleteClick = (id: string, code: string) => {
+    setDeleteTarget({ id, name: code });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await api.deleteCoupon(id);
-      setCoupons(prev => prev.filter(c => c.id !== id));
-      setSuccessMsg(`Coupon "${code}" deleted successfully.`);
+      await api.deleteCoupon(deleteTarget.id);
+      setCoupons(prev => prev.filter(c => c.id !== deleteTarget.id));
+      setSuccessMsg(`Coupon "${deleteTarget.name}" deleted successfully.`);
       setTimeout(() => setSuccessMsg(null), 3000);
+      setDeleteTarget(null);
     } catch (err: any) {
       alert(err.message || 'Failed to delete coupon');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -408,7 +419,7 @@ export const AdminCouponsTab: React.FC = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDelete(c.id, c.code)}
+                          onClick={() => handleDeleteClick(c.id, c.code)}
                           className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer border border-red-200"
                           title="Delete Coupon"
                         >
@@ -423,6 +434,17 @@ export const AdminCouponsTab: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Delete Confirmation Modal */}
+        <DeleteConfirmModal
+          isOpen={!!deleteTarget}
+          title="কুপন কোড মুছে ফেলা (Delete Coupon)"
+          itemName={deleteTarget?.name}
+          message="আপনি কি নিশ্চিত যে এই ডিসকাউন্ট কুপনটি স্থায়ীভাবে মুছে ফেলতে চান?"
+          isLoading={isDeleting}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
 
         {/* Right 1 Col: Live Validator & Quick Guidelines */}
         <div className="space-y-6">
