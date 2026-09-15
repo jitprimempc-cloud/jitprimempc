@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Users, 
   Plus, 
@@ -13,7 +13,10 @@ import {
   Image as ImageIcon,
   Sparkles,
   LayoutGrid,
-  Maximize2
+  Maximize2,
+  UploadCloud,
+  CheckCircle2,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';

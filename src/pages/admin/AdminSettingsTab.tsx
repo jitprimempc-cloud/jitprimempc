@@ -65,6 +65,7 @@ export const AdminSettingsTab: React.FC = () => {
     fullAddress: settings?.fullAddress || 'Belghoria, Nimta, Khudiram Pally, Near 42 Pally Club, Landmark - Harijon School, Kolkata - 700049, West Bengal, India.',
     businessHours: settings?.businessHours || '24/7 (Open 24 Hours, 7 Days a Week)',
     logoUrl: settings?.logoUrl || '/logo.svg',
+    aboutPhoto: settings?.aboutPhoto || '',
     shippingDisclaimer: settings?.shippingDisclaimer || settings?.internationalShippingDisclaimer || 'International shipping, duties, and timelines confirmed per quotation.',
     generalMoq: settings?.generalMoq ?? 25,
     bulkMoq: settings?.bulkMoq ?? 1000,
@@ -87,6 +88,7 @@ export const AdminSettingsTab: React.FC = () => {
         fullAddress: settings.fullAddress || prev.fullAddress || '',
         businessHours: settings.businessHours || prev.businessHours || '24/7 (Open 24 Hours, 7 Days a Week)',
         logoUrl: settings.logoUrl || prev.logoUrl || '',
+        aboutPhoto: settings.aboutPhoto || prev.aboutPhoto || '',
         shippingDisclaimer: settings.shippingDisclaimer || settings.internationalShippingDisclaimer || prev.shippingDisclaimer || '',
         generalMoq: settings.generalMoq ?? prev.generalMoq ?? 25,
         bulkMoq: settings.bulkMoq ?? prev.bulkMoq ?? 1000,
@@ -306,7 +308,36 @@ export const AdminSettingsTab: React.FC = () => {
             value={formData.logoUrl || ''}
             onChange={url => setFormData({ ...formData, logoUrl: url })}
             aspectRatio="square"
-            helperText="Upload any image from phone/laptop (auto-compressed) or paste any image URL."
+            helperText="Upload any image from phone/laptop (auto-compressed and saved to Firebase) or paste any image URL."
+          />
+        </div>
+
+        {/* About Us Page Director / Proprietor Photo */}
+        <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <label className="text-xs font-bold text-slate-800 block">
+                About Us পেজের কর্ণধার/মালিকের ছবি (Proprietor & Director Photo)
+              </label>
+              <span className="text-[11px] text-slate-500">
+                এই ছবিটি ওয়েবসাইটের &apos;About Us&apos; পেজে শ্রী মনোজিত দে (Proprietor)-এর পাশে বড় সুন্দর আকারে স্থায়ীভাবে দেখাবে।
+              </span>
+            </div>
+            {formData.aboutPhoto && (
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, aboutPhoto: '' })}
+                className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+              >
+                রিমুভ করুন (Reset to Default)
+              </button>
+            )}
+          </div>
+          <SingleImageUpload
+            value={formData.aboutPhoto || ''}
+            onChange={url => setFormData({ ...formData, aboutPhoto: url })}
+            aspectRatio="square"
+            helperText="মোবাইল বা কম্পিউটার থেকে প্রোপাইটর/পরিচালকের ছবি আপলোড করুন। ফায়ারবেসে স্থায়ীভাবে সেভ হবে।"
           />
         </div>
 

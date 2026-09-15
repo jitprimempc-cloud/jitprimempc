@@ -93,12 +93,20 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
       {/* Leadership & Story Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
         <div className="lg:col-span-5">
-          <div className="rounded-2xl overflow-hidden border-2 border-amber-400 shadow-xl bg-slate-900">
-            <img
-              src="https://images.unsplash.com/photo-1590402494682-cd3fb53b1f70?auto=format&fit=crop&w=900&q=80"
-              alt="Monojit Dey and Handicraft Production"
-              className="w-full h-96 object-cover"
-            />
+          <div className="rounded-2xl overflow-hidden border-2 border-amber-400 shadow-xl bg-slate-900 group">
+            <div className="w-full h-96 sm:h-[420px] bg-slate-950 overflow-hidden relative">
+              <img
+                src={settings?.aboutPhoto || "https://images.unsplash.com/photo-1590402494682-cd3fb53b1f70?auto=format&fit=crop&w=900&q=80"}
+                alt={`${ownerName} - Proprietor & Production Director`}
+                className="w-full h-full object-cover object-center group-hover:scale-102 transition-transform duration-500"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  if (!target.src.includes('unsplash')) {
+                    target.src = "https://images.unsplash.com/photo-1590402494682-cd3fb53b1f70?auto=format&fit=crop&w=900&q=80";
+                  }
+                }}
+              />
+            </div>
             <div className="p-5 bg-[#0B1A30] text-white">
               <h3 className="font-bold text-lg text-white">{ownerName}</h3>
               <p className="text-xs text-amber-400 font-medium">Proprietor & Production Director</p>

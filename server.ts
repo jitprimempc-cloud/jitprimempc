@@ -355,11 +355,17 @@ app.post('/api/team', checkAuth, (req, res) => {
   if (!db.teamMembers) db.teamMembers = [];
   const newMember: TeamMember = {
     ...req.body,
-    id: `team-${Date.now()}`,
-    orderIndex: req.body.orderIndex || (db.teamMembers.length + 1),
+    id: req.body.id || `team-${Date.now()}`,
+    orderIndex: req.body.orderIndex !== undefined ? req.body.orderIndex : (db.teamMembers.length + 1),
     hidden: req.body.hidden || false
   };
-  db.teamMembers.push(newMember);
+  // If exists, update; otherwise append
+  const existingIdx = db.teamMembers.findIndex(m => m.id === newMember.id);
+  if (existingIdx >= 0) {
+    db.teamMembers[existingIdx] = newMember;
+  } else {
+    db.teamMembers.push(newMember);
+  }
   writeDb(db);
   res.status(201).json(newMember);
 });

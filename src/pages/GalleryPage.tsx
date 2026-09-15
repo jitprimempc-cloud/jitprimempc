@@ -347,15 +347,15 @@ export const GalleryPage: React.FC<GalleryPageProps> = () => {
 
             {/* Modal Body */}
             <div className="p-6 overflow-y-auto space-y-4">
-              <div className="w-full aspect-16/10 bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
+              <div className="w-full max-h-[60vh] bg-slate-950 rounded-xl overflow-hidden border border-slate-200 flex items-center justify-center relative group">
                 <img
-                  src={activeModalItem.imageUrl || 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=600&q=80'}
+                  src={activeModalItem.imageUrl || 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=1200&q=85'}
                   alt={activeModalItem.title}
-                  className="w-full h-full object-cover"
+                  className="w-full max-h-[60vh] object-contain object-center"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
                     if (!target.src.includes('unsplash')) {
-                      target.src = 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=600&q=80';
+                      target.src = 'https://images.unsplash.com/photo-1611591475816-3e4732c4515b?auto=format&fit=crop&w=1200&q=85';
                     }
                   }}
                 />

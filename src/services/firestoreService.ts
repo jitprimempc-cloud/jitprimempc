@@ -6,7 +6,8 @@ import {
   setDoc,
   deleteDoc
 } from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { db, auth, storage } from '../lib/firebase';
 import type {
   Product,
   Category,
@@ -20,7 +21,8 @@ import type {
   GalleryItem,
   Artisan,
   Testimonial,
-  TeamMember
+  TeamMember,
+  MediaFile
 } from '../types';
 
 export enum OperationType {
@@ -694,4 +696,85 @@ export async function fsDeleteTeam(id: string): Promise<void> {
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
+
+// ====================================================
+// Firebase Storage & Media Persistence (স্থায়ী ছবি ও মিডিয়া স্টোরেজ)
+// ====================================================
+
+/**
+ * Uploads a raw or compressed file blob directly to Firebase Storage bucket.
+ * Returns the permanent, public HTTPS download URL.
+ */
+export async function fsUploadFileToStorage(
+  file: File | Blob, 
+  customFileName?: string,
+  folder: string = 'uploads'
+): Promise<string> {
+  const cleanName = (customFileName || (file instanceof File ? file.name : `file-${Date.now()}.jpg`))
+    .replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `${folder}/${Date.now()}-${Math.round(Math.random() * 10000)}_${cleanName}`;
+  
+  const storageRef = ref(storage, path);
+  const metadata = {
+    contentType: file.type || 'image/jpeg',
+  };
+
+  const snapshot = await uploadBytes(storageRef, file, metadata);
+  const downloadURL = await getDownloadURL(snapshot.ref);
+  return downloadURL;
+}
+
+/**
+ * Get all media catalog records from Firestore
+ */
+export async function fsGetMediaFiles(): Promise<MediaFile[]> {
+  const path = 'media';
+  try {
+    const snap = await getDocs(collection(db, path));
+    const items: MediaFile[] = [];
+    snap.forEach(d => {
+      items.push({ id: d.id, ...d.data() } as MediaFile);
+    });
+    return items;
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] is offline or database is initializing.`);
+      return [];
+    }
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+/**
+ * Save media record to Firestore so it is permanently cataloged
+ */
+export async function fsSaveMediaFile(media: MediaFile): Promise<void> {
+  const path = `media/${media.id}`;
+  try {
+    await setDoc(doc(db, 'media', media.id), cleanData(media), { merge: true });
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] write offline:`, error);
+      return;
+    }
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+/**
+ * Delete media record from Firestore and Storage if applicable
+ */
+export async function fsDeleteMediaFile(id: string): Promise<void> {
+  const path = `media/${id}`;
+  try {
+    await deleteDoc(doc(db, 'media', id));
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn(`Firestore [${path}] delete offline:`, error);
+      return;
+    }
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
 

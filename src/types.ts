@@ -275,6 +275,7 @@ export interface SiteSettings {
   advancePaymentPolicyNote: string;
   shippingDisclaimer?: string;
   visitingCardTagline?: string;
+  aboutPhoto?: string;
   teamSettings?: TeamSectionSettings;
   seo: {
     metaTitle: string;

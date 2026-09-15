@@ -24,7 +24,7 @@ import {
   TeamMember
 } from '../types';
 import { staticDatabase } from '../data/staticDb';
-import { compressImageFile } from '../utils/imageUtils';
+import { compressImageFile, dataURLToBlob } from '../utils/imageUtils';
 import {
   fsGetProducts,
   fsSaveProduct,
@@ -63,7 +63,11 @@ import {
   fsDeleteTestimonial,
   fsGetTeam,
   fsSaveTeam,
-  fsDeleteTeam
+  fsDeleteTeam,
+  fsUploadFileToStorage,
+  fsGetMediaFiles,
+  fsSaveMediaFile,
+  fsDeleteMediaFile
 } from './firestoreService';
 
 const API_BASE = '/api';
@@ -616,21 +620,50 @@ export const api = {
   // Team Members (Our Team)
   // ==========================================
   async getTeam(includeHidden = false): Promise<TeamMember[]> {
+    const memberMap = new Map<string, TeamMember>();
+
+    // 1. Static fallback baseline
+    const staticList = (staticDatabase.teamMembers || []) as TeamMember[];
+    staticList.forEach(m => {
+      if (m && m.id) memberMap.set(m.id, m);
+    });
+
+    // 2. Try Firebase Firestore Cloud Database
+    try {
+      const fsItems = await fsGetTeam();
+      if (fsItems && fsItems.length > 0) {
+        fsItems.forEach(m => {
+          if (m && m.id) memberMap.set(m.id, m);
+        });
+        setLocalItem('jit_custom_team', Array.from(memberMap.values()));
+      }
+    } catch (e) {
+      console.warn('Firestore team fetch error:', e);
+    }
+
+    // 3. Local storage cached items
     const local = getLocalItem<TeamMember[]>('jit_custom_team', []);
-    let list = [...((staticDatabase.teamMembers || []) as TeamMember[])];
-
-    if (local.length > 0) {
-      const map = new Map<string, TeamMember>();
-      list.forEach(m => map.set(m.id, m));
-      local.forEach(m => map.set(m.id, m));
-      list = Array.from(map.values());
+    if (Array.isArray(local) && local.length > 0) {
+      local.forEach(m => {
+        if (m && m.id) memberMap.set(m.id, m);
+      });
     }
+
+    // 4. Remote express backend /api/team
+    try {
+      const remote = await safeFetchJson<TeamMember[]>(`${API_BASE}/team?includeHidden=true`);
+      if (remote.ok && Array.isArray(remote.data) && remote.data.length > 0) {
+        remote.data.forEach(m => {
+          if (m && m.id) memberMap.set(m.id, m);
+        });
+      }
+    } catch (e) {
+      console.warn('Remote team fetch error:', e);
+    }
+
+    // Convert map to list and filter out deleted entries
+    let list = Array.from(memberMap.values());
     list = filterDeleted('team', list);
-
-    const remote = await safeFetchJson<TeamMember[]>(`${API_BASE}/team?includeHidden=${includeHidden}`);
-    if (remote.ok && Array.isArray(remote.data)) {
-      return filterDeleted('team', remote.data);
-    }
 
     if (!includeHidden) {
       list = list.filter(m => !m.hidden);
@@ -650,16 +683,32 @@ export const api = {
       ...member
     };
 
+    // 1. Immediately cache in localStorage so it is available even on instant refresh
     const current = getLocalItem<TeamMember[]>('jit_custom_team', []);
     setLocalItem('jit_custom_team', [newMember, ...current.filter(m => m.id !== newMember.id)]);
 
-    const remote = await safeFetchJson<TeamMember>(`${API_BASE}/team`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(newMember)
-    });
+    // 2. Save to Firebase Firestore Cloud Database
+    try {
+      await fsSaveTeam(newMember);
+    } catch (e) {
+      console.warn('Firestore team save error:', e);
+    }
 
-    return remote.ok && remote.data ? remote.data : newMember;
+    // 3. Sync to backend express server
+    try {
+      const remote = await safeFetchJson<TeamMember>(`${API_BASE}/team`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(newMember)
+      });
+      if (remote.ok && remote.data) {
+        return remote.data;
+      }
+    } catch (e) {
+      console.warn('Backend team save warning:', e);
+    }
+
+    return newMember;
   },
 
   async updateTeamMember(id: string, member: Partial<TeamMember>): Promise<TeamMember> {
@@ -667,27 +716,56 @@ export const api = {
     const existing = all.find(m => m.id === id) || ({ id, name: 'Team Member', role: 'Staff' } as TeamMember);
     const merged: TeamMember = { ...existing, ...member };
 
+    // 1. Immediately cache in localStorage
     const current = getLocalItem<TeamMember[]>('jit_custom_team', []);
     setLocalItem('jit_custom_team', [merged, ...current.filter(m => m.id !== id)]);
 
-    const remote = await safeFetchJson<TeamMember>(`${API_BASE}/team/${id}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(member)
-    });
+    // 2. Save to Firebase Firestore Cloud Database
+    try {
+      await fsSaveTeam(merged);
+    } catch (e) {
+      console.warn('Firestore team update error:', e);
+    }
 
-    return remote.ok && remote.data ? remote.data : merged;
+    // 3. Sync to backend express server
+    try {
+      const remote = await safeFetchJson<TeamMember>(`${API_BASE}/team/${id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(member)
+      });
+      if (remote.ok && remote.data) {
+        return remote.data;
+      }
+    } catch (e) {
+      console.warn('Backend team update warning:', e);
+    }
+
+    return merged;
   },
 
   async deleteTeamMember(id: string): Promise<{ success: boolean }> {
+    // 1. Record deleted locally immediately
     const current = getLocalItem<TeamMember[]>('jit_custom_team', []);
     setLocalItem('jit_custom_team', current.filter(m => m.id !== id));
     recordDeleted('team', id);
 
-    await safeFetchJson<{ success: boolean }>(`${API_BASE}/team/${id}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders()
-    });
+    // 2. Delete from Firebase Firestore
+    try {
+      await fsDeleteTeam(id);
+    } catch (e) {
+      console.warn('Firestore team delete error:', e);
+    }
+
+    // 3. Delete from backend express server
+    try {
+      await safeFetchJson<{ success: boolean }>(`${API_BASE}/team/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+    } catch (e) {
+      console.warn('Backend team delete warning:', e);
+    }
 
     return { success: true };
   },
@@ -1303,13 +1381,29 @@ export const api = {
   // Testimonials & Client Reviews
   // ==========================================
   async getTestimonials(includeHidden = false): Promise<Testimonial[]> {
-    const local = getLocalItem<Testimonial[]>('jit_custom_testimonials', []);
-    let list = [...((staticDatabase.testimonials || []) as Testimonial[])];
-    if (local.length > 0) {
-      const map = new Map<string, Testimonial>();
-      list.forEach(t => map.set(t.id, t));
-      local.forEach(t => map.set(t.id, t));
-      list = Array.from(map.values());
+    // 1. Try Firebase Firestore Cloud Database
+    let list: Testimonial[] = [];
+    let fromCloud = false;
+    try {
+      const fsItems = await fsGetTestimonials();
+      if (fsItems && fsItems.length > 0) {
+        list = fsItems;
+        fromCloud = true;
+        setLocalItem('jit_custom_testimonials', fsItems);
+      }
+    } catch (e) {
+      console.warn('Firestore testimonials fetch error:', e);
+    }
+
+    if (!fromCloud) {
+      const local = getLocalItem<Testimonial[]>('jit_custom_testimonials', []);
+      list = [...((staticDatabase.testimonials || []) as Testimonial[])];
+      if (local.length > 0) {
+        const map = new Map<string, Testimonial>();
+        list.forEach(t => map.set(t.id, t));
+        local.forEach(t => map.set(t.id, t));
+        list = Array.from(map.values());
+      }
     }
     list = filterDeleted('testimonials', list);
 
@@ -1344,6 +1438,13 @@ export const api = {
       createdAt: new Date().toISOString()
     };
 
+    // 1. Save to Firebase Firestore
+    try {
+      await fsSaveTestimonial(newRev);
+    } catch (e) {
+      console.warn('Firestore review save error:', e);
+    }
+
     const local = getLocalItem<Testimonial[]>('jit_custom_testimonials', []);
     setLocalItem('jit_custom_testimonials', [newRev, ...local]);
 
@@ -1368,6 +1469,13 @@ export const api = {
       ...t
     } as Testimonial;
 
+    // 1. Save to Firebase Firestore
+    try {
+      await fsSaveTestimonial(newT);
+    } catch (e) {
+      console.warn('Firestore testimonial save error:', e);
+    }
+
     const local = getLocalItem<Testimonial[]>('jit_custom_testimonials', []);
     setLocalItem('jit_custom_testimonials', [newT, ...local.filter(item => item.id !== newT.id)]);
 
@@ -1385,6 +1493,13 @@ export const api = {
     const existing = all.find(item => item.id === id) || { id } as Testimonial;
     const merged = { ...existing, ...t };
 
+    // 1. Save to Firebase Firestore
+    try {
+      await fsSaveTestimonial(merged);
+    } catch (e) {
+      console.warn('Firestore testimonial update error:', e);
+    }
+
     const local = getLocalItem<Testimonial[]>('jit_custom_testimonials', []);
     setLocalItem('jit_custom_testimonials', [merged, ...local.filter(item => item.id !== id)]);
 
@@ -1398,6 +1513,13 @@ export const api = {
   },
 
   async deleteTestimonial(id: string): Promise<{ success: boolean }> {
+    // 1. Delete from Firebase Firestore
+    try {
+      await fsDeleteTestimonial(id);
+    } catch (e) {
+      console.warn('Firestore testimonial delete error:', e);
+    }
+
     const local = getLocalItem<Testimonial[]>('jit_custom_testimonials', []);
     setLocalItem('jit_custom_testimonials', local.filter(item => item.id !== id));
     recordDeleted('testimonials', id);
@@ -1411,27 +1533,62 @@ export const api = {
   },
 
   // ==========================================================
-  // File & Media Upload (100% Reliable on Vercel, Netlify & Mobile)
+  // File & Media Upload (Permanent Firebase Storage & Catalog)
   // ==========================================================
   async uploadFile(file: File): Promise<{ success: boolean; url: string; file: MediaFile }> {
-    // 2. Client-side fallback with smart compression (Converts phone photos into crisp WebP/JPEG Data URLs)
-    // Server upload is skipped because Cloud Run disk is ephemeral and uploaded files are lost on restart.
-    const dataUrl = await compressImageFile(file);
+    let finalUrl = '';
+    let isStorageUrl = false;
+
+    // 1. Process image: compress client-side to keep high visual quality but fast upload size
+    let compressedDataUrl = '';
+    try {
+      compressedDataUrl = await compressImageFile(file);
+    } catch (err) {
+      console.warn('Image compression warning, using raw file:', err);
+    }
+
+    // 2. Upload directly to Firebase Storage bucket for permanent cross-device persistence
+    try {
+      let uploadPayload: Blob | File = file;
+      if (compressedDataUrl && compressedDataUrl.startsWith('data:image/')) {
+        uploadPayload = dataURLToBlob(compressedDataUrl);
+      }
+      finalUrl = await fsUploadFileToStorage(uploadPayload, file.name, 'uploads');
+      isStorageUrl = true;
+      console.log('Firebase Storage upload successful:', finalUrl);
+    } catch (storageErr) {
+      console.warn('Firebase Storage upload warning, falling back to data URL:', storageErr);
+      finalUrl = compressedDataUrl || '';
+    }
+
+    // Fallback if storage failed and no dataUrl
+    if (!finalUrl && compressedDataUrl) {
+      finalUrl = compressedDataUrl;
+    }
+
     const mediaEntry: MediaFile = {
       id: `media-${Date.now()}-${Math.round(Math.random() * 10000)}`,
       filename: file.name,
       originalName: file.name,
-      url: dataUrl,
+      url: finalUrl,
       mimeType: file.type || 'image/jpeg',
       size: file.size,
       uploadedAt: new Date().toISOString()
     };
 
+    // 3. Save catalog record to Firestore for permanent media library
+    try {
+      await fsSaveMediaFile(mediaEntry);
+    } catch (fsErr) {
+      console.warn('Firestore media catalog save warning:', fsErr);
+    }
+
+    // 4. Save locally as fast offline cache
     this.saveLocalMedia(mediaEntry);
 
     return {
       success: true,
-      url: dataUrl,
+      url: finalUrl,
       file: mediaEntry
     };
   },
@@ -1472,22 +1629,44 @@ export const api = {
   },
 
   async getMediaFiles(): Promise<MediaFile[]> {
+    // 1. Try Firebase Firestore Cloud Database
+    let cloudList: MediaFile[] = [];
+    try {
+      const fsItems = await fsGetMediaFiles();
+      if (fsItems && fsItems.length > 0) {
+        cloudList = fsItems;
+      }
+    } catch (e) {
+      console.warn('Firestore media fetch error:', e);
+    }
+
     const local = this.getLocalMedia();
-    let fallback = [...local, ...((staticDatabase.media || []) as MediaFile[])];
-    fallback = filterDeleted('media', fallback);
+    let fallback = [...cloudList, ...local, ...((staticDatabase.media || []) as MediaFile[])];
+    
+    // De-duplicate by id & url
+    const map = new Map<string, MediaFile>();
+    fallback.forEach(m => {
+      if (m && m.url) map.set(m.url, m);
+    });
 
     const remote = await safeFetchJson<MediaFile[]>(`${API_BASE}/media`);
     if (remote.ok && Array.isArray(remote.data)) {
-      const map = new Map<string, MediaFile>();
-      local.forEach(m => map.set(m.id, m));
-      remote.data.forEach(m => map.set(m.id, m));
-      return filterDeleted('media', Array.from(map.values()));
+      remote.data.forEach(m => {
+        if (m && m.url) map.set(m.url, m);
+      });
     }
 
-    return fallback;
+    return filterDeleted('media', Array.from(map.values()));
   },
 
   async deleteMediaFile(id: string): Promise<{ success: boolean }> {
+    // 1. Delete from Firebase Firestore
+    try {
+      await fsDeleteMediaFile(id);
+    } catch (e) {
+      console.warn('Firestore media delete error:', e);
+    }
+
     const local = this.getLocalMedia();
     setLocalItem('jit_custom_media', local.filter(m => m.id !== id));
     recordDeleted('media', id);

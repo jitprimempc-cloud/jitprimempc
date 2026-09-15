@@ -152,10 +152,10 @@ export const SingleImageUpload: React.FC<SingleImageUploadProps> = ({
           </div>
           <div className="text-xs">
             <span className="font-bold text-slate-800 block">
-              {uploading ? 'Processing & Compressing...' : 'Click / Tap to Select from Device'}
+              {uploading ? 'Saving Permanently to Firebase Cloud...' : 'Click / Tap to Select from Device'}
             </span>
             <span className="text-slate-500 text-[11px]">
-              JPG, PNG, WEBP, SVG (Mobile, Tablet, PC)
+              JPG, PNG, WEBP, SVG — Saved Permanently to Firebase Cloud
             </span>
           </div>
         </div>
