@@ -52,9 +52,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onSuccess, onCancel }) =
     const customPwd = localStorage.getItem('jit_admin_custom_pwd');
 
     const validUsers = [
-      { username: 'admin', email: 'admin@gmail.com', pass: ['Jit@123', 'admin123'], name: 'Admin', role: 'superadmin' },
-      { username: 'admin', email: 'admin@jitprime.com', pass: ['Jit@123', 'admin123'], name: 'Admin', role: 'superadmin' },
-      { username: 'monojit', email: 'monojitdey189@gmail.com', pass: ['jitprime85219', 'Jit@123'], name: 'Monojit Dey', role: 'superadmin' }
+      { username: 'admin', email: 'admin@gmail.com', pass: ['Jit@123'], name: 'Admin', role: 'superadmin' }
     ];
 
     const matched = validUsers.find(acc => {
@@ -120,7 +118,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onSuccess, onCancel }) =
                 type="text"
                 required
                 autoComplete="username"
-                placeholder="admin@gmail.com বা monojitdey189@gmail.com"
+                placeholder="Username or email"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500 outline-hidden text-slate-900 font-medium"
