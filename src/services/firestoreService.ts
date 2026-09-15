@@ -719,9 +719,19 @@ export async function fsUploadFileToStorage(
     contentType: file.type || 'image/jpeg',
   };
 
-  const snapshot = await uploadBytes(storageRef, file, metadata);
-  const downloadURL = await getDownloadURL(snapshot.ref);
-  return downloadURL;
+  try {
+    // 5 second timeout to prevent infinite hang if Storage is disabled
+    const uploadPromise = uploadBytes(storageRef, file, metadata);
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Firebase Storage upload timed out. Storage might not be enabled in your Firebase project.')), 5000)
+    );
+    
+    const snapshot = await Promise.race([uploadPromise, timeoutPromise]) as Awaited<ReturnType<typeof uploadBytes>>;
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    return downloadURL;
+  } catch (err) {
+    throw err;
+  }
 }
 
 /**

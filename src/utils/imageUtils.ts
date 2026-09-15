@@ -29,10 +29,12 @@ export async function compressImageFile(
     });
   }
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Failed to read file'));
     reader.onload = (e) => {
       const img = new Image();
+      img.onerror = () => reject(new Error('Failed to load image for compression'));
       img.onload = () => {
         try {
           let { width, height } = img;

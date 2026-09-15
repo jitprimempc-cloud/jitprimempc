@@ -689,7 +689,9 @@ export const api = {
 
     // 2. Save to Firebase Firestore Cloud Database
     try {
-      await fsSaveTeam(newMember);
+      const savePromise = fsSaveTeam(newMember);
+      const timeoutPromise = new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000));
+      await Promise.race([savePromise, timeoutPromise]);
     } catch (e) {
       console.warn('Firestore team save error:', e);
     }
@@ -722,7 +724,9 @@ export const api = {
 
     // 2. Save to Firebase Firestore Cloud Database
     try {
-      await fsSaveTeam(merged);
+      const savePromise = fsSaveTeam(merged);
+      const timeoutPromise = new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000));
+      await Promise.race([savePromise, timeoutPromise]);
     } catch (e) {
       console.warn('Firestore team update error:', e);
     }
@@ -1586,7 +1590,11 @@ export const api = {
 
     // Save catalog record to Firestore for permanent media library
     try {
-      await fsSaveMediaFile(mediaEntry);
+      const savePromise = fsSaveMediaFile(mediaEntry);
+      const timeoutPromise = new Promise<void>((_, reject) => 
+        setTimeout(() => reject(new Error('Media catalog save timeout')), 3000)
+      );
+      await Promise.race([savePromise, timeoutPromise]);
     } catch (fsErr) {
       console.warn('Firestore media catalog save warning:', fsErr);
     }
