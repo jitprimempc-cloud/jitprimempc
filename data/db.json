@@ -393,14 +393,7 @@
     }
   ],
   "gallery": [],
-  "teamMembers": [
-    {
-      "name": "Test",
-      "id": "team-1789487607589",
-      "orderIndex": 1,
-      "hidden": false
-    }
-  ],
+  "teamMembers": [],
   "adminUsers": [
     {
       "id": "admin-setup",
